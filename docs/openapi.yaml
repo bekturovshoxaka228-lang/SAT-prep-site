@@ -1,0 +1,1364 @@
+openapi: 3.1.0
+info:
+  title: IELTS + Digital SAT Platform API
+  version: 1.0.0
+  description: |
+    REST API v1. Cookie session (`session`, HttpOnly). Prisma `schema.prisma` is the field contract.
+    Prefix: `/api/v1`.
+servers:
+  - url: /api/v1
+    description: Same-origin (Next.js rewrites to FastAPI)
+security:
+  - cookieAuth: []
+
+tags:
+  - name: Auth
+  - name: Onboarding
+  - name: SAT
+  - name: Dashboard
+  - name: Attempts
+  - name: Flashcards
+  - name: Admin
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register student
+      description: |
+        Creates user + empty profile. Sets `Set-Cookie: session` on 201 **in the same response**.
+        Client must not `navigate()` until `response.ok` with `credentials: 'include'`.
+        After success the web app goes to `/onboarding/ielts` (never dashboard).
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Created. Session cookie set.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: '`session=<jwt>; Path=/; HttpOnly; Secure; SameSite=Lax`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '409':
+          description: Only if email or username already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+        '422':
+          description: Validation error (not a uniqueness conflict)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login with email or username
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK. Session cookie set.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Clear session cookie
+      operationId: logout
+      responses:
+        '204':
+          description: No Content. Cookie cleared.
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user and onboarding_step
+      operationId: me
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Missing or invalid session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /onboarding/ielts:
+    post:
+      tags: [Onboarding]
+      summary: Step 1 — IELTS profile (must run before SAT)
+      operationId: onboardingIelts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingIeltsRequest'
+      responses:
+        '200':
+          description: IELTS onboarding saved; `ielts_onboarding_at` set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid bands, date precision, or unknown/current conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /onboarding/sat:
+    post:
+      tags: [Onboarding]
+      summary: Step 2 — Digital SAT profile
+      description: Returns 403 if `ielts_onboarding_at` is null. Sets `onboarding_completed=true`.
+      operationId: onboardingSat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingSatRequest'
+      responses:
+        '200':
+          description: SAT onboarding saved; onboarding complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: IELTS step not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid scores or `sat_session_id` not a published official session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /sat/official-dates:
+    get:
+      tags: [SAT]
+      summary: Published College Board Digital SAT sessions
+      description: Months only Mar/May/Jun/Aug/Oct/Nov/Dec (`sat_official_sessions`).
+      operationId: listOfficialSatDates
+      security: []
+      parameters:
+        - name: include_past
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SatOfficialSession'
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Student dashboard payload
+      operationId: getDashboard
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Onboarding not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /attempts:
+    get:
+      tags: [Attempts]
+      summary: List current user attempts
+      operationId: listAttempts
+      parameters:
+        - name: exam_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ExamType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AttemptStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserAttempt'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Onboarding not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Attempts]
+      summary: Start an attempt
+      operationId: createAttempt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAttemptRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAttempt'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Onboarding not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Exam not found or unpublished
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /attempts/{attempt_id}:
+    get:
+      tags: [Attempts]
+      summary: Attempt detail with answers
+      operationId: getAttempt
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAttemptDetail'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /attempts/{attempt_id}/answers:
+    post:
+      tags: [Attempts]
+      summary: Upsert answer for a question
+      operationId: upsertAttemptAnswer
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertAnswerRequest'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAnswer'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Attempt not in_progress or not owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Attempt or question not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /attempts/{attempt_id}/submit:
+    post:
+      tags: [Attempts]
+      summary: Submit attempt (MCQ scoring; writing queued for AI)
+      operationId: submitAttempt
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAttempt'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not owner or already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flashcards/due:
+    get:
+      tags: [Flashcards]
+      summary: Due SM-2 cards for current user
+      operationId: listDueFlashcards
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FlashcardDueItem'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Onboarding not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /flashcards/{flashcard_id}/review:
+    post:
+      tags: [Flashcards]
+      summary: Record SM-2 review quality 0–5
+      operationId: reviewFlashcard
+      parameters:
+        - name: flashcard_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlashcardReviewRequest'
+      responses:
+        '200':
+          description: Progress updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserFlashcardProgress'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Flashcard not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid quality
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /admin/dashboard-stats:
+    get:
+      tags: [Admin]
+      summary: Aggregated admin home stats
+      description: Admin — full; content_manager and moderator — aggregated only.
+      operationId: adminDashboardStats
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardStats'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Role not in admin | content_manager | moderator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/tests/create:
+    post:
+      tags: [Admin]
+      summary: Create exam with sections, cues, questions
+      description: Admin and content_manager. Moderator — 403.
+      operationId: adminCreateTest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateTestRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exam'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /admin/writing/{evaluation_id}/override:
+    patch:
+      tags: [Admin]
+      summary: HITL override of AI writing scores
+      description: Admin and moderator. Writes `human_override_*`, `reviewer_id`, audit_logs.
+      operationId: adminOverrideWriting
+      parameters:
+        - name: evaluation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WritingOverrideRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiWritingEvaluation'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Role not admin or moderator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Evaluation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+
+  parameters:
+    AttemptId:
+      name: attempt_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    UserRole:
+      type: string
+      enum: [student, admin, content_manager, moderator]
+
+    IeltsTargetBand:
+      type: string
+      enum: ['6.0', '6.5', '7.0', '7.5', '8.0', '8.5+']
+
+    DatePrecision:
+      type: string
+      enum: [day, month]
+
+    SatMonth:
+      type: string
+      enum: [mar, may, jun, aug, oct, nov, dec]
+
+    ExamType:
+      type: string
+      enum: [ielts, digital_sat]
+
+    ExamSectionKind:
+      type: string
+      enum: [listening, reading, writing, speaking, rw, math]
+
+    QuestionType:
+      type: string
+      enum: [mcq, grid_in, writing_task, speaking_prompt, listening_item, reading_item]
+
+    AttemptStatus:
+      type: string
+      enum: [in_progress, submitted, scored, abandoned]
+
+    AiWritingEvalStatus:
+      type: string
+      enum: [ai_pending, ai_done, human_review, final]
+
+    FlashcardDeck:
+      type: string
+      enum: [ielts, sat, mixed]
+
+    OnboardingStep:
+      type: string
+      enum: [ielts, sat, complete]
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          examples: [unauthorized, forbidden, not_found, conflict]
+        message:
+          type: string
+        field:
+          type: string
+          nullable: true
+
+    ConflictError:
+      type: object
+      required: [code, message, field]
+      properties:
+        code:
+          type: string
+          enum: [conflict]
+        message:
+          type: string
+        field:
+          type: string
+          enum: [email, username]
+
+    ValidationError:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+          enum: [validation_error]
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+            required: [loc, msg]
+            properties:
+              loc:
+                type: array
+                items:
+                  type: string
+              msg:
+                type: string
+
+    RegisterRequest:
+      type: object
+      required: [email, username, password]
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[a-zA-Z0-9_]+$'
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          description: Email or username
+        password:
+          type: string
+
+    MeResponse:
+      type: object
+      required:
+        - id
+        - email
+        - username
+        - role
+        - onboarding_completed
+        - onboarding_step
+        - ielts_onboarding_at
+        - sat_onboarding_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        onboarding_completed:
+          type: boolean
+        onboarding_step:
+          $ref: '#/components/schemas/OnboardingStep'
+        ielts_onboarding_at:
+          type: string
+          format: date-time
+          nullable: true
+        sat_onboarding_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    OnboardingIeltsRequest:
+      type: object
+      required: [current_unknown, target_band, date_precision]
+      properties:
+        current_band:
+          type: number
+          nullable: true
+          minimum: 1.0
+          maximum: 9.0
+          multipleOf: 0.5
+          description: Required unless current_unknown is true
+        current_unknown:
+          type: boolean
+        target_band:
+          $ref: '#/components/schemas/IeltsTargetBand'
+        previous_band:
+          type: number
+          nullable: true
+          minimum: 1.0
+          maximum: 9.0
+          multipleOf: 0.5
+        planned_date:
+          type: string
+          format: date
+          nullable: true
+          description: Required when date_precision=day
+        planned_year:
+          type: integer
+          nullable: true
+          description: Required when date_precision=month
+        planned_month:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 12
+          description: Required when date_precision=month
+        date_precision:
+          $ref: '#/components/schemas/DatePrecision'
+
+    OnboardingSatRequest:
+      type: object
+      required: [current_unknown, target_score, sat_session_id]
+      properties:
+        current_score:
+          type: integer
+          nullable: true
+          minimum: 400
+          maximum: 1600
+          multipleOf: 10
+        current_unknown:
+          type: boolean
+        target_score:
+          type: integer
+          minimum: 400
+          maximum: 1600
+          multipleOf: 10
+          description: UI presets 1200, 1350, 1500; 1500+ uses sat_target_is_plus
+        sat_target_is_plus:
+          type: boolean
+          default: false
+        previous_score:
+          type: integer
+          nullable: true
+          minimum: 400
+          maximum: 1600
+          multipleOf: 10
+        sat_session_id:
+          type: string
+          format: uuid
+          description: FK to published sat_official_sessions only
+
+    SatOfficialSession:
+      type: object
+      required: [id, year, month, start_date, is_published]
+      properties:
+        id:
+          type: string
+          format: uuid
+        year:
+          type: integer
+        month:
+          $ref: '#/components/schemas/SatMonth'
+        start_date:
+          type: string
+          format: date
+        registration_deadline:
+          type: string
+          format: date
+          nullable: true
+        is_published:
+          type: boolean
+
+    DashboardResponse:
+      type: object
+      required: [ielts, sat, flashcards_due_count, recent_attempts]
+      properties:
+        ielts:
+          $ref: '#/components/schemas/DashboardIelts'
+        sat:
+          $ref: '#/components/schemas/DashboardSat'
+        flashcards_due_count:
+          type: integer
+        recent_attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserAttempt'
+
+    DashboardIelts:
+      type: object
+      required: [current_unknown, target_band, countdown_days]
+      properties:
+        current_band:
+          type: number
+          nullable: true
+        current_unknown:
+          type: boolean
+        target_band:
+          $ref: '#/components/schemas/IeltsTargetBand'
+        planned_date:
+          type: string
+          format: date
+          nullable: true
+        date_precision:
+          $ref: '#/components/schemas/DatePrecision'
+          nullable: true
+        countdown_days:
+          type: integer
+          nullable: true
+
+    DashboardSat:
+      type: object
+      required: [current_unknown, target_score, sat_target_is_plus, countdown_days]
+      properties:
+        current_score:
+          type: integer
+          nullable: true
+        current_unknown:
+          type: boolean
+        target_score:
+          type: integer
+        sat_target_is_plus:
+          type: boolean
+        session:
+          $ref: '#/components/schemas/SatOfficialSession'
+          nullable: true
+        countdown_days:
+          type: integer
+          nullable: true
+
+    CreateAttemptRequest:
+      type: object
+      required: [exam_id]
+      properties:
+        exam_id:
+          type: string
+          format: uuid
+        exam_section_id:
+          type: string
+          format: uuid
+          nullable: true
+        module_index:
+          type: integer
+          enum: [1, 2]
+          nullable: true
+
+    UserAttempt:
+      type: object
+      required: [id, user_id, exam_id, status, started_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        exam_id:
+          type: string
+          format: uuid
+        exam_section_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          $ref: '#/components/schemas/AttemptStatus'
+        started_at:
+          type: string
+          format: date-time
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        score:
+          type: number
+          nullable: true
+        max_score:
+          type: number
+          nullable: true
+        module_index:
+          type: integer
+          nullable: true
+        adaptive_path:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    UserAnswer:
+      type: object
+      required: [id, attempt_id, question_id, answer, answered_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        attempt_id:
+          type: string
+          format: uuid
+        question_id:
+          type: string
+          format: uuid
+        answer:
+          description: JSON payload (MCQ key, grid-in string, essay text)
+        is_correct:
+          type: boolean
+          nullable: true
+        awarded_points:
+          type: number
+          nullable: true
+        answered_at:
+          type: string
+          format: date-time
+
+    UserAttemptDetail:
+      allOf:
+        - $ref: '#/components/schemas/UserAttempt'
+        - type: object
+          required: [answers]
+          properties:
+            answers:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserAnswer'
+
+    UpsertAnswerRequest:
+      type: object
+      required: [question_id, answer]
+      properties:
+        question_id:
+          type: string
+          format: uuid
+        answer: {}
+
+    FlashcardDueItem:
+      type: object
+      required: [id, front, back, deck, progress]
+      properties:
+        id:
+          type: string
+          format: uuid
+        front:
+          type: string
+        back:
+          type: string
+        deck:
+          $ref: '#/components/schemas/FlashcardDeck'
+        tags:
+          type: array
+          items:
+            type: string
+        progress:
+          $ref: '#/components/schemas/UserFlashcardProgress'
+
+    FlashcardReviewRequest:
+      type: object
+      required: [quality]
+      properties:
+        quality:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: SM-2 quality rating
+
+    UserFlashcardProgress:
+      type: object
+      required: [user_id, flashcard_id, ease_factor, interval_days, repetition, next_review]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        flashcard_id:
+          type: string
+          format: uuid
+        ease_factor:
+          type: number
+        interval_days:
+          type: integer
+        repetition:
+          type: integer
+        next_review:
+          type: string
+          format: date-time
+        last_reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_quality:
+          type: integer
+          nullable: true
+
+    AdminDashboardStats:
+      type: object
+      required:
+        - users_total
+        - users_onboarded
+        - attempts_today
+        - writing_queue_pending
+        - exams_published
+      properties:
+        users_total:
+          type: integer
+        users_onboarded:
+          type: integer
+        attempts_today:
+          type: integer
+        writing_queue_pending:
+          type: integer
+          description: Evaluations in ai_done or human_review
+        exams_published:
+          type: integer
+
+    AdminCreateTestRequest:
+      type: object
+      required: [title, exam_type, sections]
+      properties:
+        title:
+          type: string
+        exam_type:
+          $ref: '#/components/schemas/ExamType'
+        description:
+          type: string
+          nullable: true
+        is_published:
+          type: boolean
+          default: false
+        sections:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AdminCreateSectionRequest'
+
+    AdminCreateSectionRequest:
+      type: object
+      required: [kind, title, duration_sec, sort_order]
+      properties:
+        kind:
+          $ref: '#/components/schemas/ExamSectionKind'
+        title:
+          type: string
+        module_index:
+          type: integer
+          enum: [1, 2]
+          nullable: true
+        duration_sec:
+          type: integer
+          minimum: 1
+        sort_order:
+          type: integer
+        instructions:
+          type: string
+          nullable: true
+        listening_cues:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminCreateListeningCueRequest'
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminCreateQuestionRequest'
+
+    AdminCreateListeningCueRequest:
+      type: object
+      required: [audio_url, start_ms, end_ms, sort_order]
+      properties:
+        client_key:
+          type: string
+          description: Temporary id to link questions.audio_cue_client_key
+        audio_url:
+          type: string
+          format: uri
+        start_ms:
+          type: integer
+          minimum: 0
+        end_ms:
+          type: integer
+          minimum: 0
+        label:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+
+    AdminCreateQuestionRequest:
+      type: object
+      required: [question_type, content, sort_order]
+      properties:
+        question_type:
+          $ref: '#/components/schemas/QuestionType'
+        content:
+          description: JSONB stem / prompt / passage fragment
+        options:
+          nullable: true
+        correct_answer:
+          nullable: true
+        hint:
+          type: string
+          nullable: true
+        explanation:
+          type: string
+          nullable: true
+        has_latex:
+          type: boolean
+          default: false
+        audio_cue_client_key:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+        points:
+          type: number
+          default: 1
+
+    Exam:
+      type: object
+      required: [id, title, exam_type, is_published]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        exam_type:
+          $ref: '#/components/schemas/ExamType'
+        description:
+          type: string
+          nullable: true
+        is_published:
+          type: boolean
+        created_by_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    WritingOverrideRequest:
+      type: object
+      required:
+        - task_achievement
+        - coherence
+        - lexical
+        - grammar
+        - overall
+        - status
+      properties:
+        task_achievement:
+          type: number
+          minimum: 0
+          maximum: 9
+        coherence:
+          type: number
+          minimum: 0
+          maximum: 9
+        lexical:
+          type: number
+          minimum: 0
+          maximum: 9
+        grammar:
+          type: number
+          minimum: 0
+          maximum: 9
+        overall:
+          type: number
+          minimum: 0
+          maximum: 9
+        comment:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [human_review, final]
+
+    AiWritingEvaluation:
+      type: object
+      required: [id, user_id, task_type, prompt_text, essay_text, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        attempt_id:
+          type: string
+          format: uuid
+          nullable: true
+        question_id:
+          type: string
+          format: uuid
+          nullable: true
+        task_type:
+          type: string
+        prompt_text:
+          type: string
+        essay_text:
+          type: string
+        status:
+          $ref: '#/components/schemas/AiWritingEvalStatus'
+        ai_task_achievement:
+          type: number
+          nullable: true
+        ai_coherence:
+          type: number
+          nullable: true
+        ai_lexical:
+          type: number
+          nullable: true
+        ai_grammar:
+          type: number
+          nullable: true
+        ai_overall:
+          type: number
+          nullable: true
+        ai_feedback:
+          nullable: true
+        human_override_task_achievement:
+          type: number
+          nullable: true
+        human_override_coherence:
+          type: number
+          nullable: true
+        human_override_lexical:
+          type: number
+          nullable: true
+        human_override_grammar:
+          type: number
+          nullable: true
+        human_override_overall:
+          type: number
+          nullable: true
+        human_override_comment:
+          type: string
+          nullable: true
+        reviewer_id:
+          type: string
+          format: uuid
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true

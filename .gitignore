@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.venv/
+__pycache__/
+
+# build outputs
+.next/
+dist/
+build/
+out/
+
+# db
+*.db
+*.sqlite3
+
+# pdfs
+*.pdf
+
+# caches
+.pytest_cache/
+.turbo/
+.vercel/
+
+# logs
+*.log
+
+# secrets and misc
+cookies.txt
+.env*
+.env*.local

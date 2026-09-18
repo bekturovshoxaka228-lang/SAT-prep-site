@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Oceanic Light Palette - Clean Minimalist */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --border: #e2e8f0;
+  --muted: #94a3b8;
+  --muted-foreground: #64748b;
+  --primary: #007EA7;
+  --primary-hover: #0093C8;
+  --accent: #00A8E8;
+  --deep: #003459;
+}
+
+.dark {
+  /* Oceanic Dark Palette - Modern Deep Graphite */
+  --background: #090d16;
+  --foreground: #f8fafc;
+  --card: #0f1724;
+  --card-foreground: #f8fafc;
+  --border: rgba(255, 255, 255, 0.08);
+  --muted: #475569;
+  --muted-foreground: #94a3b8;
+  --primary: #007EA7;
+  --primary-hover: #0093C8;
+  --accent: #00A8E8;
+  --deep: #003459;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -0.011em;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  min-height: 100vh;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.022em;
+  font-weight: 600;
+}
+
+/* Custom modern oceanic scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 139, 143, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 126, 167, 0.6);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(0, 89, 128, 0.45);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 168, 232, 0.65);
+}
+
+/* Card & Glass styles */
+.glass-card {
+  background-color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(210, 226, 233, 0.9);
+}
+
+.dark .glass-card {
+  background-color: rgba(0, 38, 60, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 52, 89, 0.8);
+}
+
+/* Accent gradient utility */
+.ocean-gradient {
+  background: linear-gradient(135deg, #003459 0%, #007EA7 50%, #00A8E8 100%);
+}
+
+.ocean-glow {
+  box-shadow: 0 0 25px -5px rgba(0, 168, 232, 0.3);
+}
+
+/* ========================================================
+   Global Button Click Effect & Dynamic Ripple Styles
+   ======================================================== */
+
+/* Tactile button feedback on press (click / tap / space / enter) */
+button:not(:disabled):not([aria-disabled="true"]):not(.no-click-effect),
+[role="button"]:not([aria-disabled="true"]):not(:disabled):not(.no-click-effect),
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="reset"]:not(:disabled),
+.btn:not(:disabled) {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease-out,
+              filter 0.15s ease-out,
+              box-shadow 0.15s ease-out;
+  will-change: transform;
+}
+
+/* Pressed state - very subtle, calm physical feedback (no screen bursting scale jump) */
+button:not(:disabled):not([aria-disabled="true"]):not(.no-click-effect):active,
+[role="button"]:not([aria-disabled="true"]):not(:disabled):not(.no-click-effect):active,
+input[type="button"]:not(:disabled):active,
+input[type="submit"]:not(:disabled):active,
+input[type="reset"]:not(:disabled):active,
+.btn:not(:disabled):active {
+  transform: scale(0.988);
+  filter: brightness(0.97);
+  transition: transform 0.06s ease-out, filter 0.06s ease-out;
+}
+
+.dark button:not(:disabled):not([aria-disabled="true"]):not(.no-click-effect):active,
+.dark [role="button"]:not([aria-disabled="true"]):not(:disabled):not(.no-click-effect):active,
+.dark input[type="button"]:not(:disabled):active,
+.dark input[type="submit"]:not(:disabled):active,
+.dark input[type="reset"]:not(:disabled):active,
+.dark .btn:not(:disabled):active {
+  transform: scale(0.988);
+  filter: brightness(1.05);
+}
+
+/* Exam & Quiz choice buttons - completely stable without any jarring scale jumps */
+.quiz-option-btn,
+.exam-choice-btn,
+[data-option-card] {
+  transform: none !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.quiz-option-btn:active,
+.exam-choice-btn:active,
+[data-option-card]:active {
+  transform: none !important;
+  filter: brightness(0.98) !important;
+}
+
+/* Soft, subtle expanding ripple wave - small, gentle, unobtrusive */
+.prepsphere-click-ripple {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: currentColor;
+  opacity: 0.10;
+  transform: scale(0);
+  animation: prepsphere-ripple-anim 320ms ease-out forwards;
+  z-index: 10;
+  will-change: transform, opacity;
+}
+
+@keyframes prepsphere-ripple-anim {
+  0% {
+    transform: scale(0);
+    opacity: 0.10;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* ========================================================
+   AI Solution Reviewer Crisp High-Legibility Typography
+   ======================================================== */
+
+.font-ai-text {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  letter-spacing: -0.012em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-ai-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: -0.015em;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+
+.ai-solution-card {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================================
+   Aqua Blue Circle Custom Cursor Styling
+   ======================================================== */
+
+@media (hover: hover) and (pointer: fine) {
+  /* Hide default cursor when custom aqua cursor is active on desktop */
+  body.custom-aqua-cursor,
+  body.custom-aqua-cursor a,
+  body.custom-aqua-cursor button,
+  body.custom-aqua-cursor [role="button"],
+  body.custom-aqua-cursor .quiz-option-btn,
+  body.custom-aqua-cursor label,
+  body.custom-aqua-cursor summary,
+  body.custom-aqua-cursor select {
+    cursor: none !important;
+  }
+
+  /* Fallback SVG aqua blue circle cursor */
+  html, body {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='8' fill='%2300A8E8' fill-opacity='0.25' stroke='%2300A8E8' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='3' fill='%2300A8E8'/%3E%3C/svg%3E") 12 12, auto;
+  }
+
+  a, button, [role="button"] {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%2300A8E8' fill-opacity='0.35' stroke='%2300E5FF' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%2300A8E8'/%3E%3C/svg%3E") 16 16, pointer;
+  }
+}
+

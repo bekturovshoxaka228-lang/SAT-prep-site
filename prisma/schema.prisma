@@ -1,0 +1,408 @@
+// Canonical data contract for IELTS + Digital SAT platform.
+// Runtime migrations: Alembic (FastAPI / SQLAlchemy 2.0) mirroring these tables 1:1.
+// Do not run Prisma Migrate in production — this file is documentation + frontend types source.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums (DB stored values via @map must match OpenAPI string enums)
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  student
+  admin
+  content_manager
+  moderator
+}
+
+enum IeltsTargetBand {
+  BAND_6_0      @map("6.0")
+  BAND_6_5      @map("6.5")
+  BAND_7_0      @map("7.0")
+  BAND_7_5      @map("7.5")
+  BAND_8_0      @map("8.0")
+  BAND_8_5_PLUS @map("8.5+")
+}
+
+enum DatePrecision {
+  day
+  month
+}
+
+enum SatMonth {
+  mar
+  may
+  jun
+  aug
+  oct
+  nov
+  dec
+}
+
+enum ExamType {
+  ielts
+  digital_sat
+}
+
+enum ExamSectionKind {
+  listening
+  reading
+  writing
+  speaking
+  rw
+  math
+}
+
+enum QuestionType {
+  mcq
+  grid_in
+  writing_task
+  speaking_prompt
+  listening_item
+  reading_item
+}
+
+enum AttemptStatus {
+  in_progress
+  submitted
+  scored
+  abandoned
+}
+
+enum AiWritingEvalStatus {
+  ai_pending
+  ai_done
+  human_review
+  final
+}
+
+enum FlashcardDeck {
+  ielts
+  sat
+  mixed
+}
+
+enum AuditAction {
+  adjust_score
+  reset_progress
+  override_writing
+  publish_exam
+  other
+}
+
+// onboarding_step is computed by GET /auth/me (ielts | sat | complete), not a DB column.
+
+// ---------------------------------------------------------------------------
+// Identity & onboarding
+// ---------------------------------------------------------------------------
+
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique @db.VarChar(255)
+  username          String    @unique @db.VarChar(64)
+  password_hash     String    @db.VarChar(255)
+  role              UserRole  @default(student)
+  email_verified_at DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(6)
+
+  profile                 UserProfile?
+  attempts                UserAttempt[]
+  flashcard_progress      UserFlashcardProgress[]
+  created_exams           Exam[]                    @relation("ExamCreatedBy")
+  created_flashcards      Flashcard[]               @relation("FlashcardCreatedBy")
+  writing_evaluations     AiWritingEvaluation[]     @relation("WritingEvalAuthor")
+  writing_reviews         AiWritingEvaluation[]     @relation("WritingEvalReviewer")
+  audit_logs_as_actor     AuditLog[]                @relation("AuditActor")
+  audit_logs_as_target    AuditLog[]                @relation("AuditTargetUser")
+
+  @@index([email])
+  @@index([username])
+  @@index([role])
+  @@map("users")
+}
+
+model UserProfile {
+  id     String @id @default(uuid()) @db.Uuid
+  user_id String @unique @db.Uuid
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  ielts_current_band    Decimal?         @db.Decimal(3, 1)
+  ielts_current_unknown Boolean          @default(false)
+  ielts_target_band     IeltsTargetBand?
+  ielts_previous        Decimal?         @db.Decimal(3, 1)
+  ielts_planned_date    DateTime?        @db.Date
+  ielts_planned_year    Int?
+  ielts_planned_month   Int?
+  ielts_date_precision  DatePrecision?
+  ielts_onboarding_at   DateTime?        @db.Timestamptz(6)
+
+  sat_current_score    Int?
+  sat_current_unknown  Boolean @default(false)
+  sat_target_score     Int?
+  sat_target_is_plus   Boolean @default(false)
+  sat_previous         Int?
+  sat_session_id       String? @db.Uuid
+  sat_session          SatOfficialSession? @relation(fields: [sat_session_id], references: [id], onDelete: SetNull)
+  sat_onboarding_at    DateTime? @db.Timestamptz(6)
+
+  onboarding_completed Boolean @default(false)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([sat_session_id])
+  @@index([onboarding_completed])
+  @@map("user_profiles")
+}
+
+model SatOfficialSession {
+  id                     String   @id @default(uuid()) @db.Uuid
+  year                   Int
+  month                  SatMonth
+  start_date             DateTime @db.Date
+  registration_deadline  DateTime? @db.Date
+  is_published           Boolean  @default(false)
+  created_at             DateTime @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime @updatedAt @db.Timestamptz(6)
+
+  profiles UserProfile[]
+
+  @@unique([year, month])
+  @@index([is_published, start_date])
+  @@map("sat_official_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Content
+// ---------------------------------------------------------------------------
+
+model Exam {
+  id           String    @id @default(uuid()) @db.Uuid
+  title        String    @db.VarChar(255)
+  exam_type    ExamType
+  description  String?   @db.Text
+  is_published Boolean   @default(false)
+  created_by_id String?  @db.Uuid
+  created_by   User?     @relation("ExamCreatedBy", fields: [created_by_id], references: [id], onDelete: SetNull)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @updatedAt @db.Timestamptz(6)
+
+  sections ExamSection[]
+  attempts UserAttempt[]
+
+  @@index([exam_type, is_published])
+  @@map("exams")
+}
+
+model ExamSection {
+  id            String          @id @default(uuid()) @db.Uuid
+  exam_id       String          @db.Uuid
+  exam          Exam            @relation(fields: [exam_id], references: [id], onDelete: Cascade)
+  kind          ExamSectionKind
+  title         String          @db.VarChar(255)
+  module_index  Int?
+  duration_sec  Int
+  sort_order    Int             @default(0)
+  instructions  String?         @db.Text
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @updatedAt @db.Timestamptz(6)
+
+  questions      Question[]
+  listening_cues ListeningCue[]
+  attempts       UserAttempt[]
+
+  @@index([exam_id, sort_order])
+  @@map("exam_sections")
+}
+
+model ListeningCue {
+  id              String      @id @default(uuid()) @db.Uuid
+  exam_section_id String      @db.Uuid
+  exam_section    ExamSection @relation(fields: [exam_section_id], references: [id], onDelete: Cascade)
+  audio_url       String      @db.VarChar(2048)
+  start_ms        Int
+  end_ms          Int
+  label           String?     @db.VarChar(255)
+  sort_order      Int         @default(0)
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime    @updatedAt @db.Timestamptz(6)
+
+  questions Question[]
+
+  @@index([exam_section_id, sort_order])
+  @@map("listening_cues")
+}
+
+model Question {
+  id              String       @id @default(uuid()) @db.Uuid
+  exam_section_id String       @db.Uuid
+  exam_section    ExamSection  @relation(fields: [exam_section_id], references: [id], onDelete: Cascade)
+  question_type   QuestionType
+  content         Json
+  options         Json?
+  correct_answer  Json?
+  hint            String?      @db.Text
+  explanation     String?      @db.Text
+  has_latex       Boolean      @default(false)
+  audio_cue_id    String?      @db.Uuid
+  audio_cue       ListeningCue? @relation(fields: [audio_cue_id], references: [id], onDelete: SetNull)
+  sort_order      Int          @default(0)
+  points          Decimal      @default(1) @db.Decimal(6, 2)
+  created_at      DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime     @updatedAt @db.Timestamptz(6)
+
+  answers              UserAnswer[]
+  writing_evaluations  AiWritingEvaluation[]
+
+  @@index([exam_section_id, sort_order])
+  @@index([audio_cue_id])
+  @@map("questions")
+}
+
+// ---------------------------------------------------------------------------
+// Practice runtime
+// ---------------------------------------------------------------------------
+
+model UserAttempt {
+  id              String        @id @default(uuid()) @db.Uuid
+  user_id         String        @db.Uuid
+  user            User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  exam_id         String        @db.Uuid
+  exam            Exam          @relation(fields: [exam_id], references: [id], onDelete: Restrict)
+  exam_section_id String?       @db.Uuid
+  exam_section    ExamSection?  @relation(fields: [exam_section_id], references: [id], onDelete: SetNull)
+  status          AttemptStatus @default(in_progress)
+  started_at      DateTime      @default(now()) @db.Timestamptz(6)
+  submitted_at    DateTime?     @db.Timestamptz(6)
+  score           Decimal?      @db.Decimal(8, 2)
+  max_score       Decimal?      @db.Decimal(8, 2)
+  module_index    Int?
+  adaptive_path   Json?
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @updatedAt @db.Timestamptz(6)
+
+  answers             UserAnswer[]
+  writing_evaluations AiWritingEvaluation[]
+
+  @@index([user_id, started_at])
+  @@index([exam_id, status])
+  @@map("user_attempts")
+}
+
+model UserAnswer {
+  id             String      @id @default(uuid()) @db.Uuid
+  attempt_id     String      @db.Uuid
+  attempt        UserAttempt @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  question_id    String      @db.Uuid
+  question       Question    @relation(fields: [question_id], references: [id], onDelete: Restrict)
+  answer         Json
+  is_correct     Boolean?
+  awarded_points Decimal?    @db.Decimal(6, 2)
+  answered_at    DateTime    @default(now()) @db.Timestamptz(6)
+
+  @@unique([attempt_id, question_id])
+  @@index([question_id])
+  @@map("user_answers")
+}
+
+model Flashcard {
+  id            String        @id @default(uuid()) @db.Uuid
+  front         String        @db.Text
+  back          String        @db.Text
+  deck          FlashcardDeck @default(mixed)
+  tags          String[]      @default([])
+  created_by_id String?       @db.Uuid
+  created_by    User?         @relation("FlashcardCreatedBy", fields: [created_by_id], references: [id], onDelete: SetNull)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime      @updatedAt @db.Timestamptz(6)
+
+  progress UserFlashcardProgress[]
+
+  @@index([deck])
+  @@map("flashcards")
+}
+
+model UserFlashcardProgress {
+  id              String    @id @default(uuid()) @db.Uuid
+  user_id         String    @db.Uuid
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  flashcard_id    String    @db.Uuid
+  flashcard       Flashcard @relation(fields: [flashcard_id], references: [id], onDelete: Cascade)
+  ease_factor     Float     @default(2.5)
+  interval_days   Int       @default(0)
+  repetition      Int       @default(0)
+  next_review     DateTime  @default(now()) @db.Timestamptz(6)
+  last_reviewed_at DateTime? @db.Timestamptz(6)
+  last_quality    Int?
+
+  @@unique([user_id, flashcard_id])
+  @@index([user_id, next_review])
+  @@map("user_flashcards_progress")
+}
+
+model AiWritingEvaluation {
+  id          String               @id @default(uuid()) @db.Uuid
+  user_id     String               @db.Uuid
+  user        User                 @relation("WritingEvalAuthor", fields: [user_id], references: [id], onDelete: Cascade)
+  attempt_id  String?              @db.Uuid
+  attempt     UserAttempt?         @relation(fields: [attempt_id], references: [id], onDelete: SetNull)
+  question_id String?              @db.Uuid
+  question    Question?            @relation(fields: [question_id], references: [id], onDelete: SetNull)
+  task_type   String               @db.VarChar(8)
+  prompt_text String               @db.Text
+  essay_text  String               @db.Text
+  status      AiWritingEvalStatus  @default(ai_pending)
+
+  ai_task_achievement Decimal? @db.Decimal(3, 1)
+  ai_coherence        Decimal? @db.Decimal(3, 1)
+  ai_lexical          Decimal? @db.Decimal(3, 1)
+  ai_grammar          Decimal? @db.Decimal(3, 1)
+  ai_overall          Decimal? @db.Decimal(3, 1)
+  ai_feedback         Json?
+
+  human_override_task_achievement Decimal? @db.Decimal(3, 1)
+  human_override_coherence        Decimal? @db.Decimal(3, 1)
+  human_override_lexical          Decimal? @db.Decimal(3, 1)
+  human_override_grammar          Decimal? @db.Decimal(3, 1)
+  human_override_overall          Decimal? @db.Decimal(3, 1)
+  human_override_comment          String?  @db.Text
+  reviewer_id                     String?  @db.Uuid
+  reviewer                        User?    @relation("WritingEvalReviewer", fields: [reviewer_id], references: [id], onDelete: SetNull)
+  reviewed_at                     DateTime? @db.Timestamptz(6)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([status])
+  @@index([user_id, created_at])
+  @@index([reviewer_id])
+  @@map("ai_writing_evaluations")
+}
+
+model AuditLog {
+  id             String      @id @default(uuid()) @db.Uuid
+  actor_id       String      @db.Uuid
+  actor          User        @relation("AuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+  target_user_id String?     @db.Uuid
+  target_user    User?       @relation("AuditTargetUser", fields: [target_user_id], references: [id], onDelete: SetNull)
+  action         AuditAction
+  entity_type    String      @db.VarChar(64)
+  entity_id      String?     @db.VarChar(64)
+  before         Json?
+  after          Json?
+  ip             String?     @db.VarChar(45)
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+
+  @@index([actor_id, created_at])
+  @@index([target_user_id, created_at])
+  @@index([entity_type, entity_id])
+  @@map("audit_logs")
+}

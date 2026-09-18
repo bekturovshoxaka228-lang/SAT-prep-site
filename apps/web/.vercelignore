@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.venv
+*.log
+.env*.local
+.DS_Store
+*.pdf
+scratch
