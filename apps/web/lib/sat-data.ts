@@ -3,6 +3,8 @@ import { TEXT_STRUCTURE_QUESTIONS } from "./sat-tsp-questions";
 import { CROSS_TEXT_QUESTIONS } from "./sat-ctc-questions";
 import { CENTRAL_IDEAS_QUESTIONS } from "./sat-cid-questions";
 import { INFERENCES_QUESTIONS } from "./sat-inf-questions";
+import { EVIDENCE_TEXTUAL_QUESTIONS } from "./sat-coet-questions";
+import { EVIDENCE_QUANTITATIVE_QUESTIONS } from "./sat-coeq-questions";
 
 export interface SubtopicMeta {
   id: string;
@@ -142,74 +144,10 @@ export const ALL_SAT_QUESTIONS: SatQuestion[] = [
   // ==========================================
   // 138 Official College Board Central Ideas and Details Questions (Easy -> Medium -> Hard)
   ...CENTRAL_IDEAS_QUESTIONS,
-  {
-    id: "rw-ii-2",
-    section: "rw",
-    domainId: "info-ideas",
-    domainName: "2. Information and Ideas",
-    subtopicId: "evidence-textual",
-    subtopic: "Command of evidence (textual)",
-    difficulty: "hard",
-    passage:
-      "Historian Elena Rostova argues that the rapid adoption of vertical-axis windmills in medieval Flanders between 1180 and 1240 CE was primarily driven by agricultural labor shortages following severe localized epidemics, rather than by winter river freezing as previous scholars asserted.",
-    stem: "Which finding from medieval Flemish archival records, if true, would most directly support Rostova's argument?",
-    type: "mcq",
-    options: [
-      {
-        id: "A",
-        text: "Windmill construction surged most dramatically in rural parishes with significant population declines, even where non-freezing rivers were plentiful.",
-      },
-      {
-        id: "B",
-        text: "Watermills produced more mechanical flour output per hour than early vertical windmills.",
-      },
-      {
-        id: "C",
-        text: "Millers frequently logged gear damage following freezing sub-zero blizzards.",
-      },
-      {
-        id: "D",
-        text: "Windmill patents were granted exclusively to royal monastic estates rather than private farmers.",
-      },
-    ],
-    correctAnswer: "A",
-    explanation:
-      "If windmills were constructed specifically where population dropped even though unfrozen rivers were abundant, labor shortage is confirmed as the primary catalyst rather than freezing water.",
-  },
-  {
-    id: "rw-ii-3",
-    section: "rw",
-    domainId: "info-ideas",
-    domainName: "2. Information and Ideas",
-    subtopicId: "evidence-quantitative",
-    subtopic: "Command of evidence (quantitative / graphs)",
-    difficulty: "medium",
-    passage:
-      "Urban ecologists measured tree canopy percentage and peak surface temperature across four metropolitan zones: Sector 1 (12% canopy, 38.5°C), Sector 2 (22% canopy, 35.1°C), Sector 3 (34% canopy, 31.8°C), and Sector 4 (45% canopy, 28.4°C). The research team hypothesized that every 10% increase in tree canopy reliably produces approximately a 3.3°C decrease in peak surface temperature.",
-    stem: "Which choice best describes how the recorded data relates to the researchers' hypothesis?",
-    type: "mcq",
-    options: [
-      {
-        id: "A",
-        text: "The data directly supports the hypothesis, as each ~10% canopy gain consistently lowers surface temperature by 3.3°C to 3.4°C.",
-      },
-      {
-        id: "B",
-        text: "The data refutes the hypothesis because Sector 4 exhibited higher temperatures than Sector 1.",
-      },
-      {
-        id: "C",
-        text: "The data shows that tree canopy density has no measurable correlation with microclimate temperatures.",
-      },
-      {
-        id: "D",
-        text: "The data suggests that canopy foliage increases heat retention during afternoon hours.",
-      },
-    ],
-    correctAnswer: "A",
-    explanation:
-      "From 12% to 22%: -3.4°C. From 22% to 34%: -3.3°C. From 34% to 45%: -3.4°C. This perfectly confirms the hypothesis.",
-  },
+  // 137 Official College Board Command of Evidence (Textual) Questions (Easy -> Medium -> Hard)
+  ...EVIDENCE_TEXTUAL_QUESTIONS,
+  // 140 Official College Board Command of Evidence (Quantitative / Graphs) Questions (Easy -> Medium -> Hard)
+  ...EVIDENCE_QUANTITATIVE_QUESTIONS,
   // 140 Official College Board Inferences Questions (Easy -> Medium -> Hard)
   ...INFERENCES_QUESTIONS,
 
