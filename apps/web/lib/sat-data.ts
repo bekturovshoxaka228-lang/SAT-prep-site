@@ -2,6 +2,7 @@ import { WORDS_IN_CONTEXT_QUESTIONS } from "./sat-wic-questions";
 import { TEXT_STRUCTURE_QUESTIONS } from "./sat-tsp-questions";
 import { CROSS_TEXT_QUESTIONS } from "./sat-ctc-questions";
 import { CENTRAL_IDEAS_QUESTIONS } from "./sat-cid-questions";
+import { INFERENCES_QUESTIONS } from "./sat-inf-questions";
 
 export interface SubtopicMeta {
   id: string;
@@ -209,74 +210,8 @@ export const ALL_SAT_QUESTIONS: SatQuestion[] = [
     explanation:
       "From 12% to 22%: -3.4°C. From 22% to 34%: -3.3°C. From 34% to 45%: -3.4°C. This perfectly confirms the hypothesis.",
   },
-  {
-    id: "rw-ii-inferences-easy",
-    section: "rw",
-    domainId: "info-ideas",
-    domainName: "2. Information and Ideas",
-    subtopicId: "inferences",
-    subtopic: "Inferences",
-    difficulty: "easy",
-    passage:
-      "A controlled greenhouse study examined tomato plant yield under three lighting systems: standard incandescent lamps, fluorescent tubes, and high-efficiency blue-red LED arrays. Plants grown under the blue-red LED arrays produced 40% more fruit biomass while consuming 60% less electrical power than those under incandescent lighting.",
-    stem: "Based on the text, what can most reasonably be inferred about high-efficiency blue-red LED arrays?",
-    type: "mcq",
-    options: [
-      {
-        id: "A",
-        text: "They are more energy-efficient and effective for tomato cultivation than traditional incandescent lamps.",
-      },
-      {
-        id: "B",
-        text: "They suppress tomato flowering unless paired with fluorescent fixtures.",
-      },
-      {
-        id: "C",
-        text: "They consume more electrical kilowatt-hours than incandescent lights.",
-      },
-      {
-        id: "D",
-        text: "They are ineffective for growing any botanical species other than tomatoes.",
-      },
-    ],
-    correctAnswer: "A",
-    explanation:
-      "Producing 40% more fruit while using 60% less power directly supports the inference that LEDs are both more productive and energy-efficient.",
-  },
-  {
-    id: "rw-ii-4",
-    section: "rw",
-    domainId: "info-ideas",
-    domainName: "2. Information and Ideas",
-    subtopicId: "inferences",
-    subtopic: "Inferences",
-    difficulty: "hard",
-    passage:
-      "Paleoclimatologists analyzing speleothem rings from Liang Luar cave observed elevated oxygen-18 isotope concentrations corresponding precisely with abrupt sediment layer thinning between 4,200 and 3,900 years ago. In equatorial cave systems, enriched oxygen-18 in calcium carbonate deposits indicates prolonged periods of suppressed monsoon precipitation.",
-    stem: "Based on the text, what can reasonably be inferred about the climate surrounding Liang Luar between 4,200 and 3,900 years ago?",
-    type: "mcq",
-    options: [
-      {
-        id: "A",
-        text: "The region endured a protracted multi-century drought characterized by weakened monsoon rainfall.",
-      },
-      {
-        id: "B",
-        text: "Catastrophic subterranean flash floods washed away ancient cave sediment layers.",
-      },
-      {
-        id: "C",
-        text: "Monsoon precipitation reached unprecedented historical highs, accelerating stalagmite growth.",
-      },
-      {
-        id: "D",
-        text: "Atmospheric temperatures dropped to freezing levels, preventing mineral deposition.",
-      },
-    ],
-    correctAnswer: "A",
-    explanation:
-      "Elevated oxygen-18 indicates suppressed monsoon rain, and sediment thinning reflects arid conditions, indicating a prolonged regional drought.",
-  },
+  // 140 Official College Board Inferences Questions (Easy -> Medium -> Hard)
+  ...INFERENCES_QUESTIONS,
 
   // ==========================================
   // READING & WRITING: 3. Expression of Ideas
