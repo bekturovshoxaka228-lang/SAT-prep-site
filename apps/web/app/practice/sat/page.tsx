@@ -441,27 +441,51 @@ function SatPracticeContent() {
         {currentQuestion ? (
           <div className="bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] p-6 sm:p-8 rounded-3xl shadow-xs transition-all space-y-6">
             <div className="flex items-center justify-between gap-3 text-xs pb-4 border-b border-slate-100 dark:border-white/[0.05]">
-              {/* Difficulty level badge */}
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium uppercase tracking-wider border flex items-center gap-1.5 ${
-                  currentQuestion.difficulty === "easy"
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/40"
-                    : currentQuestion.difficulty === "medium"
-                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/40"
-                    : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200/60 dark:border-rose-800/40"
-                }`}
-              >
+              {/* Question Number & Difficulty Level */}
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                {/* Question Number Badge */}
+                <span className="font-semibold text-xs text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-white/[0.06] px-2.5 py-0.5 rounded-full border border-slate-200/70 dark:border-white/[0.08] flex items-center gap-1">
+                  <span>Вопрос</span>
+                  <span className="font-bold text-[#007EA7] dark:text-[#00A8E8]">
+                    {activeQuestionIndex + 1}
+                  </span>
+                  <span className="text-slate-400 dark:text-slate-500 font-normal">
+                    из {filteredQuestions.length}
+                  </span>
+                </span>
+
+                {/* Difficulty level badge */}
                 <span
-                  className={`w-1.5 h-1.5 rounded-full ${
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium uppercase tracking-wider border flex items-center gap-1.5 ${
                     currentQuestion.difficulty === "easy"
-                      ? "bg-emerald-500"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/40"
                       : currentQuestion.difficulty === "medium"
-                      ? "bg-amber-500"
-                      : "bg-rose-500"
+                      ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/40"
+                      : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200/60 dark:border-rose-800/40"
                   }`}
-                />
-                {currentQuestion.difficulty === "easy" ? "Easy" : currentQuestion.difficulty === "medium" ? "Medium" : "Hard"}
-              </span>
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      currentQuestion.difficulty === "easy"
+                        ? "bg-emerald-500"
+                        : currentQuestion.difficulty === "medium"
+                        ? "bg-amber-500"
+                        : "bg-rose-500"
+                    }`}
+                  />
+                  {currentQuestion.difficulty === "easy" ? "Easy" : currentQuestion.difficulty === "medium" ? "Medium" : "Hard"}
+                </span>
+
+                {/* Question Bank ID */}
+                {currentQuestion.originalId && (
+                  <span
+                    className="text-[11px] font-mono text-slate-400 dark:text-slate-500 px-2 py-0.5 rounded bg-slate-100/60 dark:bg-white/[0.03] border border-slate-200/40 dark:border-white/[0.05]"
+                    title="Официальный ID вопроса College Board"
+                  >
+                    ID: {currentQuestion.originalId}
+                  </span>
+                )}
+              </div>
 
               {/* Mark for Review Button */}
               <button
