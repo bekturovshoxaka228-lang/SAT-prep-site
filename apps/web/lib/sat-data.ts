@@ -3,6 +3,7 @@ import { TEXT_STRUCTURE_QUESTIONS } from "./sat-tsp-questions";
 import { CROSS_TEXT_QUESTIONS } from "./sat-ctc-questions";
 import { CENTRAL_IDEAS_QUESTIONS } from "./sat-cid-questions";
 import { INFERENCES_QUESTIONS } from "./sat-inf-questions";
+import { COMMAND_OF_EVIDENCE_QUESTIONS } from "./sat-coe-questions";
 import { EVIDENCE_TEXTUAL_QUESTIONS } from "./sat-coet-questions";
 import { EVIDENCE_QUANTITATIVE_QUESTIONS } from "./sat-coeq-questions";
 
@@ -55,8 +56,7 @@ export const RW_DOMAINS: DomainMeta[] = [
       "Tests comprehension, analysis, and reasoning — locating, interpreting, and integrating information from texts and graphics.",
     subtopics: [
       { id: "central-ideas", name: "Central ideas and details" },
-      { id: "evidence-textual", name: "Command of evidence (textual)" },
-      { id: "evidence-quantitative", name: "Command of evidence (quantitative / graphs)" },
+      { id: "command-of-evidence", name: "Command of evidence" },
       { id: "inferences", name: "Inferences" },
     ],
   },
@@ -145,10 +145,8 @@ export const ALL_SAT_QUESTIONS: SatQuestion[] = [
   // ==========================================
   // 138 Official College Board Central Ideas and Details Questions (Easy -> Medium -> Hard)
   ...CENTRAL_IDEAS_QUESTIONS,
-  // 144 Official College Board Command of Evidence (Textual) Questions (Easy -> Medium -> Hard)
-  ...EVIDENCE_TEXTUAL_QUESTIONS,
-  // 133 Official College Board Command of Evidence (Quantitative / Graphs) Questions with visual charts (Easy -> Medium -> Hard)
-  ...EVIDENCE_QUANTITATIVE_QUESTIONS,
+  // 277 Official College Board Command of Evidence Questions (133 Quantitative with graphs + 144 Textual)
+  ...COMMAND_OF_EVIDENCE_QUESTIONS,
   // 140 Official College Board Inferences Questions (Easy -> Medium -> Hard)
   ...INFERENCES_QUESTIONS,
 

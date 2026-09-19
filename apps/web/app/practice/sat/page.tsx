@@ -191,7 +191,11 @@ function SatPracticeContent() {
       setSelectedDomain(domainParam);
     }
     if (subtopicParam) {
-      setSelectedSubtopic(subtopicParam);
+      if (["evidence", "evidence-textual", "evidence-quantitative", "command-of-evidence"].includes(subtopicParam)) {
+        setSelectedSubtopic("command-of-evidence");
+      } else {
+        setSelectedSubtopic(subtopicParam);
+      }
     }
     if (difficultyParam) {
       setSelectedDifficulty(difficultyParam);
@@ -227,7 +231,15 @@ function SatPracticeContent() {
     return ALL_SAT_QUESTIONS.filter((q) => {
       if (q.section !== activeTab) return false;
       if (selectedDomain !== "all" && q.domainId !== selectedDomain) return false;
-      if (selectedSubtopic !== "all" && q.subtopicId !== selectedSubtopic) return false;
+      if (selectedSubtopic !== "all") {
+        if (selectedSubtopic === "command-of-evidence") {
+          if (!["command-of-evidence", "evidence", "evidence-textual", "evidence-quantitative"].includes(q.subtopicId)) {
+            return false;
+          }
+        } else if (q.subtopicId !== selectedSubtopic) {
+          return false;
+        }
+      }
       if (selectedDifficulty !== "all" && q.difficulty !== selectedDifficulty) return false;
       return true;
     });

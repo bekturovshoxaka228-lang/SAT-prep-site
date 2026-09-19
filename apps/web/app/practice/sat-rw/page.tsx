@@ -17,6 +17,7 @@ const SUBTOPIC_DESCRIPTIONS: Record<string, string> = {
   "underlined-structure": "Role of underlined portions, paragraph purpose, and rhetorical structure.",
   "cross-text": "Paired passages synthesis, author perspectives, and counterarguments.",
   "central-ideas": "Main ideas, central claims, and supporting factual details.",
+  "command-of-evidence": "Locating, interpreting, and integrating textual evidence and quantitative data from tables, charts, and graphs.",
   "evidence-textual": "Finding textual quotes that directly substantiate a researcher's hypothesis.",
   "evidence-quantitative": "Interpreting data tables, charts, and graphs within scientific contexts.",
   "inferences": "Deducing unstated logical conclusions directly supported by the passage.",
