@@ -27,6 +27,7 @@ export interface SatQuestion {
   subtopicId: string;
   subtopic: string;
   difficulty: "easy" | "medium" | "hard";
+  image?: string;
   passage?: string;
   stem: string;
   type: "mcq" | "grid-in";
@@ -144,9 +145,9 @@ export const ALL_SAT_QUESTIONS: SatQuestion[] = [
   // ==========================================
   // 138 Official College Board Central Ideas and Details Questions (Easy -> Medium -> Hard)
   ...CENTRAL_IDEAS_QUESTIONS,
-  // 137 Official College Board Command of Evidence (Textual) Questions (Easy -> Medium -> Hard)
+  // 144 Official College Board Command of Evidence (Textual) Questions (Easy -> Medium -> Hard)
   ...EVIDENCE_TEXTUAL_QUESTIONS,
-  // 140 Official College Board Command of Evidence (Quantitative / Graphs) Questions (Easy -> Medium -> Hard)
+  // 133 Official College Board Command of Evidence (Quantitative / Graphs) Questions with visual charts (Easy -> Medium -> Hard)
   ...EVIDENCE_QUANTITATIVE_QUESTIONS,
   // 140 Official College Board Inferences Questions (Easy -> Medium -> Hard)
   ...INFERENCES_QUESTIONS,

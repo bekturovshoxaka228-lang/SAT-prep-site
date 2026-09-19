@@ -20,6 +20,8 @@ import {
   RotateCcw,
   LayoutGrid,
   X,
+  BarChart3,
+  Maximize2,
 } from "lucide-react";
 import { AiSolutionReviewer, AiRecommendationCard } from "@/components/ai-solution-reviewer";
 import { VocabularyDrawer } from "@/components/vocabulary-drawer";
@@ -136,6 +138,7 @@ function SatPracticeContent() {
   const [showCalculator, setShowCalculator] = useState(false);
   const [isVocabOpen, setIsVocabOpen] = useState(false);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   // Active question index within filtered questions
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
@@ -505,6 +508,43 @@ function SatPracticeContent() {
                 <span>{isCurrentMarked ? "Отмечен для повтора" : "Отметить (Review)"}</span>
               </button>
             </div>
+
+            {/* Visual Graph / Table if question has an image */}
+            {currentQuestion.image && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400 px-1">
+                  <span className="flex items-center gap-1.5 text-[#007EA7] dark:text-[#00A8E8]">
+                    <BarChart3 className="w-4 h-4" strokeWidth={2} />
+                    <span>График / Таблица данных</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setZoomedImage(currentQuestion.image || null)}
+                    className="text-[11px] text-slate-500 hover:text-[#007EA7] dark:hover:text-[#00A8E8] flex items-center gap-1 transition px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/[0.05]"
+                    title="Нажмите, чтобы открыть во весь экран"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    <span>Увеличить</span>
+                  </button>
+                </div>
+                <div
+                  onClick={() => setZoomedImage(currentQuestion.image || null)}
+                  className="group relative cursor-zoom-in p-4 sm:p-6 rounded-2xl bg-white border border-slate-200/90 dark:border-white/[0.12] shadow-2xs hover:border-[#007EA7]/50 dark:hover:border-[#00A8E8]/50 transition flex items-center justify-center overflow-hidden"
+                >
+                  {/* Clean white background container ensuring high contrast for black-and-white exam diagrams in all themes */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={currentQuestion.image}
+                    alt="График или таблица к вопросу"
+                    className="max-h-[360px] sm:max-h-[420px] w-auto max-w-full object-contain select-none transition-transform duration-200 group-hover:scale-[1.01]"
+                    loading="eager"
+                  />
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition bg-slate-900/80 text-white rounded-full p-2 pointer-events-none shadow-md">
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Reading Passage if applicable */}
             {currentQuestion.passage && (
@@ -961,6 +1001,37 @@ function SatPracticeContent() {
                   Вернуться к вопросу {activeQuestionIndex + 1}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lightbox / Zoom Modal for Graphs */}
+        {zoomedImage && (
+          <div
+            onClick={() => setZoomedImage(null)}
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 cursor-zoom-out animate-in fade-in duration-150"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-4xl max-h-[90vh] bg-white rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 overflow-auto flex flex-col items-center"
+            >
+              <button
+                type="button"
+                onClick={() => setZoomedImage(null)}
+                className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition shadow-xs"
+                title="Закрыть (Esc)"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 select-none">
+                Официальный график / Таблица вопроса
+              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={zoomedImage}
+                alt="Увеличенный график"
+                className="max-h-[78vh] w-auto max-w-full object-contain select-none"
+              />
             </div>
           </div>
         )}
