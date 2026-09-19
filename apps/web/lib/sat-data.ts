@@ -1,6 +1,7 @@
 import { WORDS_IN_CONTEXT_QUESTIONS } from "./sat-wic-questions";
 import { TEXT_STRUCTURE_QUESTIONS } from "./sat-tsp-questions";
 import { CROSS_TEXT_QUESTIONS } from "./sat-ctc-questions";
+import { CENTRAL_IDEAS_QUESTIONS } from "./sat-cid-questions";
 
 export interface SubtopicMeta {
   id: string;
@@ -138,74 +139,8 @@ export const ALL_SAT_QUESTIONS: SatQuestion[] = [
   // ==========================================
   // READING & WRITING: 2. Information and Ideas
   // ==========================================
-  {
-    id: "rw-ii-central-easy",
-    section: "rw",
-    domainId: "info-ideas",
-    domainName: "2. Information and Ideas",
-    subtopicId: "central-ideas",
-    subtopic: "Central ideas and details",
-    difficulty: "easy",
-    passage:
-      "Desert succulents such as agave and aloe maintain thick, waxy outer cuticles and open their stomata exclusively during cool nighttime hours. This nocturnal carbon fixation mechanism, known as Crassulacean Acid Metabolism (CAM), enables these plants to conserve up to 90% more moisture than traditional temperate flora during arid daylight conditions.",
-    stem: "Which choice best describes the central idea of the text?",
-    type: "mcq",
-    options: [
-      {
-        id: "A",
-        text: "Desert succulents utilize nocturnal adaptations and waxy cuticles to dramatically reduce water loss in arid environments.",
-      },
-      {
-        id: "B",
-        text: "Temperate plants consume more carbon dioxide per hour than nocturnal desert succulents.",
-      },
-      {
-        id: "C",
-        text: "Agave and aloe can only survive in soil that has been saturated with seasonal winter rainfall.",
-      },
-      {
-        id: "D",
-        text: "Stomata in succulents remain closed continuously throughout all four seasons.",
-      },
-    ],
-    correctAnswer: "A",
-    explanation:
-      "The text explains that thick waxy cuticles and opening stomata at night (CAM photosynthesis) allow succulents to conserve moisture in desert conditions.",
-  },
-  {
-    id: "rw-ii-1",
-    section: "rw",
-    domainId: "info-ideas",
-    domainName: "2. Information and Ideas",
-    subtopicId: "central-ideas",
-    subtopic: "Central ideas and details",
-    difficulty: "medium",
-    passage:
-      "Biologists studying bioluminescence in deep-sea cephalopods noted that species inhabiting the bathypelagic zone emit a steady blue-green wavelength rather than rapid, bright flashes. Blue-green light penetrates seawater with minimal attenuation, allowing cephalopods to detect conspecific mates over long distances without triggering the visual sensory alarms of apex predators accustomed to sudden light bursts.",
-    stem: "Which choice best states the main idea of the text?",
-    type: "mcq",
-    options: [
-      {
-        id: "A",
-        text: "Deep-sea cephalopods adapt their light emission wavelengths to balance reproductive signaling with predator avoidance.",
-      },
-      {
-        id: "B",
-        text: "Apex predators in the bathypelagic zone are blind to all wavelengths of light except rapid flashes.",
-      },
-      {
-        id: "C",
-        text: "Bioluminescent signaling evolved primarily to stun prey rather than facilitate reproduction.",
-      },
-      {
-        id: "D",
-        text: "Blue-green light travels slower through cold ocean depths than red or yellow wavelengths.",
-      },
-    ],
-    correctAnswer: "A",
-    explanation:
-      "The passage explains that steady blue-green light penetrates seawater effectively to locate mates while preventing detection by apex predators, balancing reproduction with survival.",
-  },
+  // 138 Official College Board Central Ideas and Details Questions (Easy -> Medium -> Hard)
+  ...CENTRAL_IDEAS_QUESTIONS,
   {
     id: "rw-ii-2",
     section: "rw",
