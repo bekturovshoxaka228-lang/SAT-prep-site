@@ -12,6 +12,7 @@ import {
   Headphones,
   PenTool,
   MessageSquare,
+  Languages,
   FileEdit,
   Calculator,
   Award,
@@ -20,7 +21,9 @@ import {
   LogOut,
   Menu,
   X,
+  ArrowRightLeft,
 } from "lucide-react";
+import { useExamMode } from "@/lib/exam-mode-context";
 
 interface SidebarProps {
   username?: string;
@@ -69,75 +72,75 @@ export function Sidebar({ username: initialUsername, role: initialRole, onLogout
     }
   };
 
+  const { mode, toggleMode } = useExamMode();
   const isStaff = role === "admin" || role === "content_manager" || role === "moderator";
 
+  // Dynamic Navigation based on active exam mode
   const navItems: NavGroup[] = [
     {
-      group: "OVERVIEW",
-      items: [
-        {
-          name: "Dashboard",
-          href: "/dashboard",
-          icon: LayoutDashboard,
-        },
-        {
-          name: "Flashcards",
-          href: "/flashcards",
-          icon: Layers,
-        },
-      ],
-    },
-    {
-      group: "IELTS",
-      tag: "IELTS",
-      items: [
-        {
-          name: "Reading",
-          href: "/practice/reading",
-          icon: BookOpen,
-        },
-        {
-          name: "Listening",
-          href: "/practice/listening",
-          icon: Headphones,
-        },
-        {
-          name: "Writing",
-          href: "/practice/writing",
-          icon: PenTool,
-        },
-        {
-          name: "Speaking",
-          href: "/practice/speaking",
-          icon: MessageSquare,
-        },
-      ],
-    },
-    {
-      group: "SAT",
-      tag: "SAT",
-      items: [
-        {
-          name: "Reading & Writing",
-          href: "/practice/sat-rw",
-          icon: FileEdit,
-        },
-        {
-          name: "Math",
-          href: "/practice/sat-math",
-          icon: Calculator,
-        },
-      ],
-    },
-    {
-      group: "EXAMS",
-      items: [
-        {
-          name: "Mock Exams",
-          href: "/practice/mocks",
-          icon: Award,
-        },
-      ],
+      group: mode === "SAT" ? "DIGITAL SAT TRACK" : "IELTS ACADEMIC TRACK",
+      tag: mode,
+      items:
+        mode === "SAT"
+          ? [
+              {
+                name: "Dashboard",
+                href: "/dashboard",
+                icon: LayoutDashboard,
+              },
+              {
+                name: "Reading & Writing",
+                href: "/practice/sat-rw",
+                icon: FileEdit,
+              },
+              {
+                name: "Math",
+                href: "/practice/sat-math",
+                icon: Calculator,
+              },
+              {
+                name: "Full Mocks",
+                href: "/practice/mocks",
+                icon: Award,
+              },
+              {
+                name: "Flashcards",
+                href: "/flashcards",
+                icon: Layers,
+              },
+            ]
+          : [
+              {
+                name: "Dashboard",
+                href: "/dashboard",
+                icon: LayoutDashboard,
+              },
+              {
+                name: "Reading",
+                href: "/practice/reading",
+                icon: BookOpen,
+              },
+              {
+                name: "Listening",
+                href: "/practice/listening",
+                icon: Headphones,
+              },
+              {
+                name: "Writing",
+                href: "/practice/writing",
+                icon: PenTool,
+              },
+              {
+                name: "Speaking",
+                href: "/practice/speaking",
+                icon: MessageSquare,
+              },
+              {
+                name: "Translator",
+                href: "/practice/translator",
+                icon: Languages,
+              },
+            ],
     },
   ];
 
@@ -170,6 +173,23 @@ export function Sidebar({ username: initialUsername, role: initialRole, onLogout
         )}
       </div>
 
+      {/* Mode Switcher Pill */}
+      <div className="px-3 pt-3 pb-1">
+        <button
+          onClick={toggleMode}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-2xl bg-slate-50 dark:bg-white/[0.03] hover:bg-slate-100 dark:hover:bg-white/[0.06] border border-slate-200/60 dark:border-white/[0.06] text-xs font-semibold text-slate-700 dark:text-slate-300 transition-all group"
+          title="Нажмите для переключения между Digital SAT и IELTS Academic"
+        >
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${mode === "SAT" ? "bg-[#007EA7]" : "bg-[#00A8E8]"}`} />
+            <span className="font-semibold text-xs">
+              {mode === "SAT" ? "Digital SAT Track" : "IELTS Academic Track"}
+            </span>
+          </div>
+          <ArrowRightLeft className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#007EA7] dark:group-hover:text-[#00A8E8] transition-colors" />
+        </button>
+      </div>
+
       {/* Navigation list */}
       <div className="flex-1 overflow-y-auto py-5 px-3 space-y-5">
         {navItems.map((sec) => (
@@ -197,7 +217,7 @@ export function Sidebar({ username: initialUsername, role: initialRole, onLogout
 
                 return (
                   <Link
-                    key={item.href}
+                    key={`${item.name}-${item.href}`}
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={`group flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium transition-all ${

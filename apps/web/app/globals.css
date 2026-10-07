@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@600;700&family=Gaegu:wght@400;700&family=Gochi+Hand&family=Patrick+Hand&family=Permanent+Marker&family=Shantell+Sans:wght@500;700;800&display=swap');
+@import "katex/dist/katex.min.css";
 
 @tailwind base;
 @tailwind components;
@@ -238,4 +240,289 @@ input[type="reset"]:not(:disabled):active,
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%2300A8E8' fill-opacity='0.35' stroke='%2300E5FF' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%2300A8E8'/%3E%3C/svg%3E") 16 16, pointer;
   }
 }
+
+/* ========================================================
+   Unified Math Typography & KaTeX Formula Scaling (Digital SAT Math)
+   Task 1: Strict unified font-size (18px desktop / 16px mobile)
+   ======================================================== */
+
+.math-problem-text,
+.math-problem-stem {
+  font-size: clamp(1rem, 0.95rem + 0.35vw, 1.125rem) !important; /* 16px mobile, 18px desktop */
+  line-height: 1.6 !important;
+  word-break: break-word;
+}
+
+.math-option-text {
+  font-size: clamp(1rem, 0.95rem + 0.35vw, 1.125rem) !important; /* 16px mobile, 18px desktop */
+  line-height: 1.5 !important;
+  word-break: normal !important;
+}
+
+.math-option-text p {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin: 0 !important;
+  flex-wrap: wrap !important;
+}
+
+.math-option-text math {
+  display: inline-block !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+.math-option-text .katex {
+  white-space: nowrap !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+}
+
+.math-option-text .katex-html {
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.math-explanation-text {
+  font-size: clamp(1rem, 0.95rem + 0.35vw, 1.125rem) !important; /* 16px mobile, 18px desktop */
+  line-height: 1.6 !important;
+  word-break: break-word;
+}
+
+/* KaTeX formula scaling - visual parity with ambient text */
+.katex {
+  font-size: 1.0em !important;
+  line-height: normal;
+}
+
+.katex-display {
+  margin: 0.75em 0 !important;
+  font-size: 1.05em !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+/* Stimulus container: allow natural horizontal & vertical scroll if needed, never shrink text */
+.math-stimulus-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+.math-stimulus-img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+}
+
+/* Crisp rendering for formula & option images at true scale */
+.math-option-img {
+  display: inline-block;
+  vertical-align: middle;
+  height: auto;
+  max-height: 36px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* Override any inline font-size styles from content */
+.math-problem-text [style*="font-size"],
+.math-problem-stem [style*="font-size"],
+.math-option-text [style*="font-size"],
+.math-explanation-text [style*="font-size"] {
+  font-size: inherit !important;
+}
+
+/* ========================================================
+   Uniform Thin Font Weight across SAT Math (Stem, Formulas, Options)
+   Eliminates jarring font-weight jumping from bold to thin
+   ======================================================== */
+
+.math-problem-text,
+.math-problem-stem,
+.math-option-text,
+.math-explanation-text,
+.smart-math-content,
+.smart-math-content *,
+.math-problem-stem *,
+.math-problem-text *,
+.math-option-text *,
+.math-explanation-text * {
+  font-weight: 400 !important;
+}
+
+/* Force KaTeX and MathML symbols, numbers, and text to remain thin (400) */
+.katex,
+.katex-html,
+.katex *,
+.katex .mathnormal,
+.katex .mord,
+.katex .mbin,
+.katex .mrel,
+.katex .mopen,
+.katex .mclose,
+.katex .mpunct,
+.katex .minner,
+.katex .textbf,
+.katex .mathbf {
+  font-weight: 400 !important;
+}
+
+/* Override bold/strong tags inside all math elements */
+.math-problem-text strong,
+.math-problem-text b,
+.math-problem-stem strong,
+.math-problem-stem b,
+.math-option-text strong,
+.math-option-text b,
+.math-explanation-text strong,
+.math-explanation-text b,
+.smart-math-content strong,
+.smart-math-content b {
+  font-weight: 400 !important;
+}
+
+/* Override any inline font-weight styles from College Board raw export */
+.math-problem-text [style*="font-weight"],
+.math-problem-stem [style*="font-weight"],
+.math-option-text [style*="font-weight"],
+.math-explanation-text [style*="font-weight"],
+.smart-math-content [style*="font-weight"] {
+  font-weight: 400 !important;
+}
+
+/* ========================================================
+   Smart Math & Vector SVG Content (Digital SAT Math Bank)
+   ======================================================== */
+
+.smart-math-content {
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* Strict unified font size inheritance */
+.smart-math-content p,
+.smart-math-content span,
+.smart-math-content div {
+  font-size: inherit;
+}
+
+/* MathML typography & sizing - preserving native MathML layout context */
+.smart-math-content math {
+  font-family: inherit;
+  font-size: 1.05em;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.smart-math-content math:not([display="block"]) {
+  display: inline-block !important;
+  vertical-align: -0.1em;
+  white-space: nowrap !important;
+}
+
+/* Block MathML equations */
+.smart-math-content p math[display="block"],
+.smart-math-content div > math[display="block"],
+.smart-math-content math[display="block"] {
+  display: block !important;
+  margin: 0.75rem auto;
+  text-align: center;
+  white-space: normal;
+}
+
+/* Responsive Vector SVG diagrams */
+.smart-math-content figure.image,
+.smart-math-content figure {
+  margin: 0.75rem auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.smart-math-content svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Semantic HTML data tables in SAT math problems */
+.smart-math-content .table-container {
+  margin: 1.25rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.smart-math-content .table-title,
+.smart-math-content caption {
+  font-size: 0.95em;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  color: inherit;
+  line-height: 1.4;
+}
+
+.smart-math-content table {
+  margin: 0.75rem auto;
+  border-collapse: collapse;
+  width: auto;
+  min-width: 220px;
+  max-width: 100%;
+  font-size: 0.95em;
+  border: 1px solid #94a3b8;
+  background-color: transparent;
+  text-align: center;
+}
+
+.dark .smart-math-content table {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.smart-math-content th {
+  padding: 8px 18px;
+  background-color: #f1f5f9;
+  font-weight: 600 !important;
+  border: 1px solid #94a3b8;
+  text-align: center;
+  color: #0f172a;
+}
+
+.dark .smart-math-content th {
+  background-color: rgba(30, 41, 59, 0.85);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #f8fafc;
+}
+
+.smart-math-content td {
+  padding: 8px 18px;
+  border: 1px solid #94a3b8;
+  text-align: center;
+  color: inherit;
+}
+
+.dark .smart-math-content td {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Detailed zoom expanded view */
+.smart-math-content.zoom-expanded svg {
+  max-width: 100%;
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+}
+
+
 

@@ -9,6 +9,10 @@ from app.schemas.ai_review import (
     AiSolutionReviewRequest,
     AiSolutionReviewResponse,
     AnalogousExample,
+    AskWhyRequest,
+    AskWhyResponse,
+    FollowUpQuizOption,
+    FollowUpQuizQuestion,
 )
 
 router = APIRouter()
@@ -232,6 +236,88 @@ def generate_intelligent_review(req: AiSolutionReviewRequest) -> AiSolutionRevie
                 ]
             )
 
+OPENROUTER_DEFAULT_KEY = ""
+OPENROUTER_DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
+OPENROUTER_FALLBACK_MODELS = [
+    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3.5-lightning",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+]
+
+def extract_json(raw_text: str) -> dict:
+    raw_text = raw_text.strip()
+    try:
+        return json.loads(raw_text)
+    except Exception:
+        pass
+    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except Exception:
+            pass
+    start = raw_text.find("{")
+    end = raw_text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(raw_text[start : end + 1])
+        except Exception:
+            pass
+    raise ValueError(f"Could not parse JSON from model output: {raw_text[:200]}")
+
+async def call_openrouter(
+    messages: list,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    timeout: float = 35.0,
+) -> dict:
+    key = api_key or os.getenv("OPENROUTER_API_KEY") or OPENROUTER_DEFAULT_KEY
+    target_model = model or os.getenv("OPENROUTER_MODEL") or OPENROUTER_DEFAULT_MODEL
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "SAT & IELTS AI Platform",
+    }
+
+    models_to_try = [target_model]
+    for fb in OPENROUTER_FALLBACK_MODELS:
+        if fb not in models_to_try:
+            models_to_try.append(fb)
+
+    last_error = None
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for m in models_to_try:
+            payload = {
+                "model": m,
+                "messages": messages,
+                "temperature": 0.2,
+                "response_format": {"type": "json_object"},
+            }
+            try:
+                resp = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data["choices"][0]["message"]["content"]
+                    return extract_json(content)
+                elif resp.status_code in (429, 502, 503, 504):
+                    last_error = f"Model {m} status {resp.status_code}: {resp.text}"
+                    continue
+                else:
+                    last_error = f"Model {m} status {resp.status_code}: {resp.text}"
+                    break
+            except Exception as e:
+                last_error = str(e)
+                continue
+
+    raise RuntimeError(f"OpenRouter Nemotron failed: {last_error}")
+
 @router.post(
     "/review-solution",
     response_model=AiSolutionReviewResponse,
@@ -239,20 +325,19 @@ def generate_intelligent_review(req: AiSolutionReviewRequest) -> AiSolutionRevie
 )
 async def review_solution(req: AiSolutionReviewRequest) -> AiSolutionReviewResponse:
     """
-    Evaluates a user's solution according to the exact pedagogical criteria:
+    Evaluates a user's solution according to the exact pedagogical criteria powered by NVIDIA Nemotron 3.5.
     - Determine result: correct or error detected.
     - If error: exact quote of flawed fragment, rule/principle violated, full correct solution, simpler analogous example.
     - If correct: validation explanation and key takeaways.
     - Direct, step-by-step, no water.
-    Supports external LLM API (Gemini / OpenAI) if an API key is provided, or built-in intelligent engine.
+    Supports OpenRouter Nemotron 3.5 (free), OpenAI, Gemini, or built-in intelligent engine.
     """
-    api_key = req.api_key or os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")
-    provider = (req.provider or "gemini").lower()
+    api_key = req.api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY") or OPENROUTER_DEFAULT_KEY
+    provider = (req.provider or os.getenv("AI_PROVIDER") or "openrouter").lower()
 
     if api_key:
         try:
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                prompt_content = f"""Original Task:
+            prompt_content = f"""Original Task:
 {req.task_prompt}
 
 Subject: {req.subject}
@@ -264,7 +349,20 @@ Student's Submitted Solution / Working / Answer:
 
 Evaluate strictly according to the system instructions and return only valid JSON."""
 
-                if provider == "openai" or api_key.startswith("sk-"):
+            # 1. OpenRouter Nemotron 3.5
+            if provider == "openrouter" or api_key.startswith("sk-or-") or not (os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")):
+                parsed = await call_openrouter(
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt_content},
+                    ],
+                    api_key=api_key,
+                )
+                return AiSolutionReviewResponse.model_validate(parsed)
+
+            # 2. OpenAI
+            elif provider == "openai" or api_key.startswith("sk-"):
+                async with httpx.AsyncClient(timeout=25.0) as client:
                     resp = await client.post(
                         "https://api.openai.com/v1/chat/completions",
                         headers={"Authorization": f"Bearer {api_key}"},
@@ -281,10 +379,11 @@ Evaluate strictly according to the system instructions and return only valid JSO
                     if resp.status_code == 200:
                         data = resp.json()
                         raw_json = data["choices"][0]["message"]["content"]
-                        parsed = json.loads(raw_json)
-                        return AiSolutionReviewResponse.model_validate(parsed)
-                else:
-                    # Google Gemini
+                        return AiSolutionReviewResponse.model_validate(extract_json(raw_json))
+
+            # 3. Google Gemini
+            elif provider == "gemini":
+                async with httpx.AsyncClient(timeout=25.0) as client:
                     resp = await client.post(
                         f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
                         headers={"Content-Type": "application/json"},
@@ -297,11 +396,331 @@ Evaluate strictly according to the system instructions and return only valid JSO
                     if resp.status_code == 200:
                         data = resp.json()
                         raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                        parsed = json.loads(raw_text)
-                        return AiSolutionReviewResponse.model_validate(parsed)
+                        return AiSolutionReviewResponse.model_validate(extract_json(raw_text))
         except Exception:
             # Fallback seamlessly to the built-in intelligent evaluation engine
             pass
 
     # Fallback to the intelligent evaluation engine
     return generate_intelligent_review(req)
+
+
+def build_smart_quiz(req: AskWhyRequest) -> FollowUpQuizQuestion:
+    task = req.task_prompt.lower()
+    subject = (req.subject or "").lower()
+
+    if "math" in subject or any(c.isdigit() for c in task):
+        if "2x + 5" in task or "4x - 3" in task or "19" in task:
+            return FollowUpQuizQuestion(
+                question="🧠 Проверь себя: если 2x + 5 = 19, чему равно значение выражения 2x + 1?",
+                options=[
+                    FollowUpQuizOption(id="A", text="15", is_correct=True, feedback="Абсолютно верно! 2x = 14, следовательно 2x + 1 = 14 + 1 = 15."),
+                    FollowUpQuizOption(id="B", text="7", is_correct=False, feedback="Ловушка: 7 — это значение переменной x, а вопрос просил найти 2x + 1."),
+                    FollowUpQuizOption(id="C", text="25", is_correct=False, feedback="25 — это ответ для 4x - 3 из исходной задачи, а не для 2x + 1."),
+                ],
+                explanation="Главный принцип Digital SAT Math: никогда не останавливайтесь на нахождении x, всегда подставляйте его в целевое выражение."
+            )
+        return FollowUpQuizQuestion(
+            question="🧠 Проверочный вопрос: что является самым надежным первым шагом при решении подобных уравнений?",
+            options=[
+                FollowUpQuizOption(id="A", text="Изолировать неизвестную переменную с одной стороны знака равенства", is_correct=True, feedback="Верно! Сначала изолируем переменную x или целевой блок."),
+                FollowUpQuizOption(id="B", text="Сразу наугад перемножать коэффициенты", is_correct=False, feedback="Хаотичные вычисления приводят к арифметическим ошибкам."),
+                FollowUpQuizOption(id="C", text="Округлять все промежуточные значения", is_correct=False, feedback="Округление промежуточных чисел ведет к потере точности на экзамене."),
+            ],
+            explanation="Аналитическое изолирование переменной гарантирует точность решения."
+        )
+
+    if "fungi" in task or "integral" in task or "ecosystem" in task:
+        return FollowUpQuizQuestion(
+            question="🧠 Проверь себя: если бы контекст описывал процесс, разрушающий экосистему, какое слово подошло бы вместо 'integral'?",
+            options=[
+                FollowUpQuizOption(id="A", text="detrimental (пагубный / разрушительный)", is_correct=True, feedback="В точку! 'Detrimental' выражает деструктивную, негативную роль в экосистеме."),
+                FollowUpQuizOption(id="B", text="superfluous (избыточный)", is_correct=False, feedback="'Superfluous' означает 'лишний', но не передает разрушительного эффекта."),
+                FollowUpQuizOption(id="C", text="tangential (косвенный)", is_correct=False, feedback="'Tangential' означает едва касающийся сути, без негативного деструктивного оттенка."),
+            ],
+            explanation="В заданиях Words in Context определяйте точную эмоциональную и логическую окраску (valence) требуемого слова."
+        )
+
+    return FollowUpQuizQuestion(
+        question="🧠 Проверь понимание: по какому главному критерию следует отсекать варианты в секции Reading & Writing?",
+        options=[
+            FollowUpQuizOption(id="A", text="Если вариант содержит домыслы или слишком категоричные слова (always, never), не доказанные текстом", is_correct=True, feedback="Именно! В Digital SAT правильный ответ должен быть на 100% подтвержден текстом без домыслов."),
+            FollowUpQuizOption(id="B", text="Если в варианте есть незнакомые сложные слова", is_correct=False, feedback="Словарный запас важен, но сложность слова не означает его неверность."),
+            FollowUpQuizOption(id="C", text="Если вариант кажется короче остальных", is_correct=False, feedback="Длина варианта ответа не связана с его правильностью."),
+        ],
+        explanation="Метод Process of Elimination основан на отсеве необоснованных обобщений."
+    )
+
+def build_detailed_breakdown(req: AskWhyRequest) -> str:
+    subject = (req.subject or "").lower()
+    if "math" in subject:
+        return (
+            "📌 **Глубокий разбор логики решения:**\n\n"
+            "1. **Анализ условия:** Выделите заданные ограничения и равенства.\n"
+            "2. **Определение цели:** Обратите внимание, просят ли найти значение $x$ или выражение ($4x - 3$). Это устраняет риск попадания в ловушку промежуточного ответа.\n"
+            "3. **Упрощение вычислений:** Если $2x = 14$, то $4x = 2 \\times (2x) = 28$ сразу без нахождения $x$.\n"
+            "4. **Проверка:** Подставьте найденное значение обратно в уравнение."
+        )
+    return (
+        "📌 **Глубокий разбор логики решения:**\n\n"
+        "1. **Анализ контекста:** Определите тональность и логическую связь предложения (причина-следствие, контраст или дополнение).\n"
+        "2. **Правило объективности:** Ответ верен только тогда, когда каждое его слово напрямую подтверждается текстом без домыслов."
+    )
+
+def generate_intelligent_why(req: AskWhyRequest) -> AskWhyResponse:
+    q_lower = req.question.lower().strip()
+    official_exp = (req.official_explanation or "").strip()
+    task = req.task_prompt.strip()
+    correct_ref = (req.correct_answer or "").strip()
+    user_sol = (req.user_solution or "").strip()
+    subject = req.subject or "general"
+
+    # Clean HTML from explanation for analysis
+    clean_exp = re.sub(r"<[^>]+>", " ", official_exp)
+    clean_exp = re.sub(r"\s+", " ", clean_exp).strip()
+
+    quiz = build_smart_quiz(req)
+    breakdown = build_detailed_breakdown(req)
+
+    # Detect if asking for detailed explanation
+    if any(k in q_lower for k in ["подробнее", "детальнее", "разъясни", "объясни подробно", "deep dive"]):
+        answer = (
+            f"**Подробный разбор решения задачи:**\n\n"
+            f"1. **Суть задачи:** {task}\n\n"
+            f"2. **Пошаговое решение:** {clean_exp or 'Решение строится на строгом следовании правилам и исключении неверных вариантов.'}\n\n"
+            f"3. **Почему правилен ответ {correct_ref}:** Этот вариант полностью удовлетворяет ограничениям и подтвержден всеми вычислениями.\n\n"
+            f"**А теперь ответь на проверочный вопрос ниже, чтобы закрепить понимание!**"
+        )
+        return AskWhyResponse(
+            answer=answer,
+            key_rule="Всегда проверяйте соответствие ответа конкретному требованию условия.",
+            detailed_breakdown=breakdown,
+            follow_up_quiz=quiz,
+            suggested_follow_up=[
+                "В чем главная ловушка в этом задании?",
+                "Как решить аналогичную задачу за 20 секунд?",
+                "Задай мне еще один проверочный вопрос",
+            ],
+        )
+
+    # Detect if asking for check question / quiz
+    if any(k in q_lower for k in ["задай вопрос", "проверь меня", "проверочный вопрос", "quiz", "тест"]):
+        answer = (
+            "Отличная идея проверить свои знания! Ниже я подготовил для тебя проверочный вопрос по этой теме. "
+            "Выбери вариант ответа, и я сразу дам тебе подробный фидбек."
+        )
+        return AskWhyResponse(
+            answer=answer,
+            key_rule="Активная самопроверка через проверочные вопросы ускоряет подготовку в 2 раза.",
+            detailed_breakdown=breakdown,
+            follow_up_quiz=quiz,
+            suggested_follow_up=[
+                "Объясни подробнее суть задачи",
+                "В чем здесь главная ловушка?",
+                f"Почему верный ответ именно {correct_ref}?",
+            ],
+        )
+
+    # Detect if asking about a specific choice (A, B, C, D)
+    choice_match = re.search(r"\b(?:choice|option|вариант[ае]?)\s*([a-dа-г])\b|\b([a-dа-г])\s*(?:не подходит|неверн|ошибоч)", q_lower)
+    target_choice = None
+    if choice_match:
+        raw_char = (choice_match.group(1) or choice_match.group(2)).upper()
+        cyr_map = {"А": "A", "Б": "B", "В": "C", "Г": "D"}
+        target_choice = cyr_map.get(raw_char, raw_char)
+
+    if target_choice:
+        choice_regex = rf"(?:Choice|Option|Вариант)\s+{target_choice}\s+(?:is|не|является)[^.]*\.(.*?)(?=(?:Choice|Option|Вариант)\s+[A-D]|$)"
+        m = re.search(choice_regex, clean_exp, re.IGNORECASE)
+        choice_text = m.group(0).strip() if m else None
+        is_target_correct = correct_ref.upper().endswith(target_choice)
+
+        if choice_text:
+            if is_target_correct:
+                answer = f"Вариант **{target_choice}** является **правильным ответом**.\n\n{choice_text}\n\n**Почему:** Этот вариант полностью согласуется с условием задачи и не содержит логических или математических искажений."
+                key_rule = f"Вариант {target_choice} строго доказан текстом или расчетными данными."
+            else:
+                answer = f"Вариант **{target_choice}** **не подходит** по следующей причине:\n\n{choice_text}\n\nЭто классический дистрактор (ловушка College Board). Внимательно следите за тем, не искажает ли он условия задания."
+                key_rule = "Отсекайте варианты, содержащие частичные искажения или противоречащие условию."
+        else:
+            if is_target_correct:
+                answer = f"Вариант **{target_choice}** — это **правильный ответ**. Он напрямую вытекает из условия задачи: '{task[:90]}...' и полностью подтверждается официальным решением."
+                key_rule = f"Правильный выбор ({target_choice}) строго отвечает на поставленный вопрос."
+            else:
+                answer = f"Вариант **{target_choice}** **не подходит**, так как правильным ответом является **{correct_ref or 'другой вариант'}**.\n\nНа тестах SAT дистракторы специально используют термины из текста или промежуточные вычисления, чтобы создать видимость правильности."
+                key_rule = "Исключайте варианты, которые отвечают не на тот вопрос или содержат неверные знаки."
+
+        return AskWhyResponse(
+            answer=answer,
+            key_rule=key_rule,
+            detailed_breakdown=breakdown,
+            follow_up_quiz=quiz,
+            suggested_follow_up=[
+                "Объясни задачу подробнее",
+                f"Почему правильным является именно {correct_ref}?",
+                "В чем главная ловушка в этом задании?",
+            ],
+        )
+
+    # If asking why user's answer is wrong
+    if any(phrase in q_lower for phrase in ["мой ответ", "моя ошибка", "почему неверно", "почему неправильно", "почему ошибка"]):
+        answer = f"Ваш ответ '{user_sol or 'выбранный вариант'}' не совпадает с эталонным решением **{correct_ref}**.\n\n"
+        if "math" in subject or any(c.isdigit() for c in task):
+            answer += "В математической секции Digital SAT частая причина такой ошибки — неверный знак при переносе слагаемого, ошибка в вычислении дроби или подстановка значения x вместо требуемого выражения (например, x вместо 4x - 3).\n\n"
+        else:
+            answer += "В секции Reading & Writing College Board часто расставляет ловушки 'Overstatement' (слишком категоричное суждение) или подменяет причину и следствие.\n\n"
+        if official_exp:
+            answer += f"**Официальное пояснение:**\n{clean_exp[:350]}..."
+
+        return AskWhyResponse(
+            answer=answer,
+            key_rule="Всегда перепроверяйте, что именно спрашивается в задании, прежде чем вводить ответ.",
+            detailed_breakdown=breakdown,
+            follow_up_quiz=quiz,
+            suggested_follow_up=[
+                "Объясни подробнее по шагам",
+                f"Почему именно {correct_ref} правильный?",
+                "В чем ловушка в этом задании?",
+            ],
+        )
+
+    # If asking about traps
+    if any(phrase in q_lower for phrase in ["ловушк", "подвох", "trap", "ошибк"]):
+        if "math" in subject:
+            answer = "Главная ловушка Digital SAT Math в таких задачах:\n1. **Промежуточное значение:** Вопрос может просить найти не просто $x$, а значение выражения вроде $4x - 3$ или $x + y$. Найдя $x$, многие сразу выбирают его и попадают в ловушку!\n2. **Знаки минуса:** Ошибка в знаках при делении или переносе через знак равенства."
+        else:
+            answer = "Главная ловушка Digital SAT Reading & Writing в таких задачах:\n1. **Полуправда (Half-Right Trap):** Вариант ответа содержит слова из текста, но делает вывод, которого автор текста не делал.\n2. **Экстремальные слова:** Варианты со словами 'always', 'never', 'completely' почти всегда неверны."
+
+        return AskWhyResponse(
+            answer=answer,
+            key_rule="Читайте последнее предложение условия — там находится точный вопрос задачи.",
+            detailed_breakdown=breakdown,
+            follow_up_quiz=quiz,
+            suggested_follow_up=[
+                "Объясни решение подробнее",
+                f"Почему именно вариант {correct_ref} верный?",
+                "Дай совет по тайм-менеджменту",
+            ],
+        )
+
+    # General explanation
+    answer = f"**Логика выбора правильного ответа ({correct_ref}):**\n\n"
+    if clean_exp:
+        answer += f"{clean_exp}\n\n"
+    else:
+        answer += f"Решение основано на строгом анализе условия: '{task[:150]}...'\n\n"
+    answer += "Каждый неверный вариант ответа содержит опровержимое утверждение или математическую неточность, тогда как правильный ответ полностью доказан."
+
+    return AskWhyResponse(
+        answer=answer,
+        key_rule="Используйте метод исключения заведомо неверных вариантов (Process of Elimination).",
+        detailed_breakdown=breakdown,
+        follow_up_quiz=quiz,
+        suggested_follow_up=[
+            "Объясни решение подробнее с интуицией",
+            "Задай мне проверочный вопрос",
+            "В чем здесь главная ловушка?",
+        ],
+    )
+
+
+@router.post(
+    "/ask-why",
+    response_model=AskWhyResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def ask_why(req: AskWhyRequest) -> AskWhyResponse:
+    """
+    Pedagogical AI endpoint powered by OpenRouter NVIDIA Nemotron 3.5 (free model)
+    specifically designed to answer student's 'Why?' questions, explain answers in detail,
+    and ask interactive follow-up check questions (Socratic quiz).
+    """
+    api_key = req.api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY") or OPENROUTER_DEFAULT_KEY
+    provider = (req.provider or os.getenv("AI_PROVIDER") or "openrouter").lower()
+
+    if api_key:
+        try:
+            # 1. OpenRouter with NVIDIA Nemotron 3.5
+            if provider == "openrouter" or api_key.startswith("sk-or-") or not (os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")):
+                system_prompt = (
+                    "Ты — первоклассный интерактивный ИИ-наставник по Digital SAT и IELTS, "
+                    "работающий на базе модели NVIDIA Nemotron 3.5.\n"
+                    "Твоя задача — не просто сухо отвечать, а глубоко и понятно объяснять ответ («на пальцах», с интуицией, разбором каждого шага и ловушек College Board) "
+                    "И ОБЯЗАТЕЛЬНО задавать студенту интерактивный проверочный вопрос (Follow-Up Quiz) во время объяснения задачи, чтобы закрепить понимание!\n\n"
+                    "Ты ДОЛЖЕН ответить строго в валидном JSON по следующей схеме:\n"
+                    "{\n"
+                    '  "answer": "Подробный педагогический разбор: интуиция, пошаговые действия, почему верный ответ именно такой и почему дистракторы не подходят",\n'
+                    '  "key_rule": "Краткое ключевое правило, формула или совет по ловушкам для экзамена",\n'
+                    '  "detailed_breakdown": "Углубленное пошаговое объяснение деталей и тонкостей задачи с лайфхаками",\n'
+                    '  "suggested_follow_up": ["Вопрос для обсуждения 1", "Вопрос 2"],\n'
+                    '  "follow_up_quiz": {\n'
+                    '    "question": "Интерактивный проверочный вопрос студенту на закрепление логики этой задачи",\n'
+                    '    "options": [\n'
+                    '      {"id": "A", "text": "Вариант 1", "is_correct": false, "feedback": "Пояснение, почему это неверно"},\n'
+                    '      {"id": "B", "text": "Вариант 2", "is_correct": true, "feedback": "Верно! Объяснение почему"},\n'
+                    '      {"id": "C", "text": "Вариант 3", "is_correct": false, "feedback": "Пояснение ошибки"}\n'
+                    '    ],\n'
+                    '    "explanation": "Итоговое пояснение проверочного вопроса"\n'
+                    '  }\n'
+                    "}"
+                )
+                user_prompt = (
+                    f"Условие задания:\n{req.task_prompt}\n\n"
+                    f"Предмет / Секция: {req.subject}\n"
+                    f"Правильный ответ: {req.correct_answer or 'Не указан'}\n"
+                    f"Официальное пояснение: {req.official_explanation or 'Не указано'}\n"
+                    f"Ответ студента: {req.user_solution or 'Не указан'}\n\n"
+                    f"Вопрос студента: {req.question}\n\n"
+                    "Ответь строго в валидном JSON с подробным разбором и обязательным проверочным вопросом follow_up_quiz."
+                )
+                parsed = await call_openrouter(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    api_key=api_key,
+                )
+                return AskWhyResponse.model_validate(parsed)
+
+            # 2. OpenAI
+            elif provider == "openai" or (api_key.startswith("sk-") and not api_key.startswith("sk-or-")):
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    resp = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        json={
+                            "model": "gpt-4o-mini",
+                            "messages": [
+                                {"role": "system", "content": "You are a top SAT & IELTS pedagogical AI tutor. Answer student's 'Why' questions with clarity, precision, and friendly academic tone in Russian."},
+                                {"role": "user", "content": f"Task: {req.task_prompt}\nCorrect: {req.correct_answer}\nExplanation: {req.official_explanation}\nStudent's question: {req.question}"},
+                            ],
+                            "response_format": {"type": "json_object"},
+                            "temperature": 0.3,
+                        },
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw_json = data["choices"][0]["message"]["content"]
+                        return AskWhyResponse.model_validate(extract_json(raw_json))
+
+            # 3. Google Gemini
+            elif provider == "gemini":
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    resp = await client.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
+                        headers={"Content-Type": "application/json"},
+                        json={
+                            "systemInstruction": {"parts": [{"text": "You are a top SAT & IELTS pedagogical AI tutor. Answer student's 'Why' questions with clarity, precision, and friendly academic tone in Russian."}]},
+                            "contents": [{"parts": [{"text": f"Task: {req.task_prompt}\nQuestion: {req.question}"}]}],
+                            "generationConfig": {"responseMimeType": "application/json"},
+                        },
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                        return AskWhyResponse.model_validate(extract_json(raw_text))
+        except Exception:
+            pass
+
+    return generate_intelligent_why(req)
+

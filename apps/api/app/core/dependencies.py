@@ -12,7 +12,11 @@ from app.models.enums import UserRole, OnboardingStep
 from app.schemas.auth import MeResponse
 
 def compute_onboarding_step(profile: Optional[UserProfile]) -> OnboardingStep:
-    if not profile or not profile.ielts_onboarding_at:
+    if not profile:
+        return OnboardingStep.ielts
+    if profile.onboarding_completed:
+        return OnboardingStep.complete
+    if not profile.ielts_onboarding_at:
         return OnboardingStep.ielts
     if not profile.sat_onboarding_at:
         return OnboardingStep.sat

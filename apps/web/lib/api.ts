@@ -77,7 +77,16 @@ async function request<T>(
       return { ok: true, status: 204, data: null, error: null };
     }
 
-    const data = await res.json().catch(() => null);
+    let data: any = null;
+    try {
+      const text = await res.text();
+      if (text && text.trim().length > 0) {
+        data = JSON.parse(text);
+      }
+    } catch {
+      data = null;
+    }
+
     if (!res.ok) {
       return { ok: false, status: res.status, data: null, error: data };
     }

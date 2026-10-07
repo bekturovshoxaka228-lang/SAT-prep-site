@@ -13,16 +13,29 @@ import {
 import { MATH_DOMAINS, ALL_SAT_QUESTIONS } from "@/lib/sat-data";
 
 const MATH_SUBTOPIC_DESCRIPTIONS: Record<string, string> = {
-  "linear-equations": "Solving and analyzing 1-variable and 2-variable linear equations.",
-  "systems-equations": "Linear systems, substitution, elimination, and solution counts.",
-  "linear-functions": "Interpreting slopes, y-intercepts, and real-world linear relationships.",
+  "linear-equations-one-variable": "Solving, manipulating, and analyzing single-variable linear equations and algebraic word problems.",
+  "linear-functions": "Interpreting function notation, slopes, y-intercepts, and modeling real-world linear relationships.",
+  "linear-equations-two-variables": "Graphing, standard form, slope-intercept form, and lines in the xy-plane.",
+  "systems-two-linear-equations": "Linear systems, substitution, elimination, parallel lines, and solution counts (0, 1, or infinitely many).",
+  "linear-inequalities": "Single-variable and two-variable linear inequalities, systems of inequalities, and viable solution regions.",
+  "nonlinear-functions": "Quadratic, exponential, and polynomial functions, vertex form, parabolas, and growth models.",
+  "nonlinear-equations-systems": "Solving nonlinear equations, systems of linear and nonlinear equations, and radicals.",
+  "equivalent-expressions": "Factoring, expanding, exponent properties, and equivalent algebraic expressions.",
   "quadratics": "Factoring quadratics, parabolas, vertex form, and the quadratic formula.",
   "exponents": "Exponent rules, radical expressions, and equivalent algebraic forms.",
   "polynomials": "Polynomial division, factor theorem, and polynomial arithmetic.",
-  "percentages-rates": "Unit conversions, percentage change, proportions, and ratios.",
-  "data-probability": "Two-way frequency tables, conditional probability, and data spreads.",
-  "circles": "Standard equation of a circle, arc lengths, sectors, and radii.",
+  "percentages-rates": "Unit conversions, percentage change, proportions, ratios, and multi-step percentage problems.",
+  "ratios-rates": "Ratios, proportions, rates, and unit analysis in context.",
+  "probability": "Conditional probability, relative frequencies, two-way tables, and sample spaces.",
+  "one-variable-data": "Mean, median, mode, range, standard deviation, and boxplots.",
+  "two-variable-data": "Scatterplots, lines of best fit, correlation, and two-variable models.",
+  "inference-statistics": "Margin of error, confidence intervals, and inferences from random samples.",
+  "circles": "Standard circle equation (x-h)² + (y-k)² = r², center, radius, arc length, and sector area.",
+  "area-volume": "Area of 2D shapes, surface area, and volume of 3D geometric figures.",
+  "lines-angles-triangles": "Angle relationships, parallel lines, triangle angle sum, and polygon theorems.",
+  "right-triangles-trigonometry": "Pythagorean theorem, special right triangles, and trigonometric ratios (sin, cos, tan).",
   "triangles-trig": "Special right triangles, similarity, and trigonometric ratios (sin, cos, tan).",
+  "data-probability": "Two-way frequency tables, conditional probability, and data spreads.",
 };
 
 const FULL_MATH_MODULES = [

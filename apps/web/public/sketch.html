@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAT & IELTS • Hand-Drawn Sketch Interface</title>
+
+  <!-- Authentic Sketch & Handwriting Fonts from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gochi+Hand&family=Patrick+Hand&family=Permanent+Marker&display=swap"
+    rel="stylesheet"
+  />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sketch: ['"Gaegu"', '"Patrick Hand"', 'cursive'],
+            hand: ['"Patrick Hand"', 'cursive'],
+          },
+          colors: {
+            ink: '#0a111a',
+            tablet: '#d4e3ec',
+            track: '#8faec2',
+            trackNode: '#5c849e',
+            aimBg: '#638da5',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Gaegu', 'Patrick Hand', 'Gochi Hand', cursive;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Hand-drawn organic uneven border radius */
+    .sketch-frame {
+      border: 3.5px solid #0a111a;
+      border-radius: 26px 28px 24px 25px / 25px 24px 28px 26px;
+    }
+
+    .sketch-card {
+      border: 3.5px solid #0a111a;
+      border-radius: 24px 22px 25px 23px / 23px 25px 22px 24px;
+    }
+
+    .sketch-inner {
+      border: 3.5px solid #0a111a;
+      border-radius: 22px 26px 20px 24px / 24px 20px 25px 22px;
+    }
+
+    .sketch-circle {
+      border-radius: 50% 48% 52% 49% / 49% 52% 48% 51%;
+    }
+
+    .sketch-pill {
+      border: 3.5px solid #0a111a;
+      border-radius: 22px 26px 20px 24px / 24px 20px 26px 22px;
+    }
+
+    /* Signature scribble / diagonal hatch pattern for the Aim badge */
+    .aim-hatch {
+      background-color: #638da5;
+      background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(255, 255, 255, 0.45) 0px,
+        rgba(255, 255, 255, 0.45) 2.5px,
+        transparent 2.5px,
+        transparent 6px
+      );
+      border-radius: 18px 22px 17px 20px / 20px 17px 22px 18px;
+    }
+  </style>
+</head>
+
+<body class="bg-[#c2d5e3] text-[#0a111a] min-h-screen flex flex-col items-center justify-center p-2 sm:p-5 lg:p-8 select-none">
+
+  <!-- Top Helper Bar -->
+  <div class="w-full max-w-4xl flex items-center justify-between mb-2 px-3 text-xs sm:text-sm font-bold text-slate-700">
+    <div class="flex items-center gap-2">
+      <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#0a111a]"></span>
+      <span>Ручной скетч-интерфейс • Hand-Drawn 1:1 по фото</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button
+        onclick="toggleExamMode()"
+        class="hover:underline bg-white/70 px-2 py-0.5 rounded border border-[#0a111a] text-xs font-mono cursor-pointer"
+      >
+        [Клавиша T для смены режима]
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN TABLET FRAME: Matches photo's shape, ink lines, and pale blue tone -->
+  <div class="sketch-frame w-full max-w-4xl bg-tablet shadow-[4px_5px_0px_0px_#0a111a] relative overflow-hidden flex flex-col transition-all duration-300">
+    
+    <!-- Watercolor smudge / blue highlighter marker streak on bottom right -->
+    <div class="absolute -bottom-6 -right-6 w-48 h-20 bg-[#a2c9e2] rounded-[40px] opacity-75 blur-[3px] pointer-events-none transform -rotate-6 z-0"></div>
+    <div class="absolute bottom-2 -right-4 w-32 h-6 bg-[#8ebfdc] opacity-60 rounded-full blur-[1px] pointer-events-none z-0"></div>
+
+    <div class="relative z-10 flex flex-col md:flex-row min-h-[560px]">
+      
+      <!-- LEFT SIDEBAR -->
+      <aside class="w-full md:w-52 border-b-[3.5px] md:border-b-0 md:border-r-[3.5px] border-[#0a111a] flex flex-col justify-between shrink-0 bg-tablet">
+        <div>
+          <!-- TOP: Hamburger Menu (3 hand-drawn wavy lines) -->
+          <div
+            onclick="toggleSidebarExpand()"
+            class="p-3.5 border-b-[3.5px] border-[#0a111a] flex items-center justify-start cursor-pointer hover:bg-[#c9dbe7] transition"
+            title="Меню"
+          >
+            <div class="flex flex-col gap-1.5 w-9">
+              <div class="h-[3.5px] bg-[#0a111a] rounded-full w-9 transform -rotate-0.5"></div>
+              <div class="h-[3.5px] bg-[#0a111a] rounded-full w-7 ml-0.5 transform rotate-0.5"></div>
+              <div class="h-[3.5px] bg-[#0a111a] rounded-full w-8 transform -rotate-0.5"></div>
+            </div>
+          </div>
+
+          <!-- MENU CELLS: Divided by horizontal black ink lines -->
+          <nav id="sidebarNav">
+            <!-- Populated via JavaScript dynamically -->
+          </nav>
+        </div>
+
+        <!-- BOTTOM OF SIDEBAR: Black dot avatar + "zxerif" handwritten -->
+        <div class="p-3.5 pt-6 flex items-center gap-2.5">
+          <div class="sketch-circle w-8 h-8 rounded-full bg-[#0a111a] border-2 border-[#0a111a] shrink-0"></div>
+          <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0a111a] leading-none">
+            zxerif
+          </span>
+        </div>
+      </aside>
+
+      <!-- MAIN RIGHT AREA -->
+      <main class="flex-1 p-3 sm:p-5 lg:p-6 flex flex-col justify-between gap-4">
+        
+        <!-- TOP HEADER: "Turn to IELTS" / "Turn to SAT" Black Banner -->
+        <div class="w-full">
+          <button
+            id="modeToggleBtn"
+            onclick="toggleExamMode()"
+            class="sketch-pill w-full bg-[#0a111a] text-white py-3 px-6 sm:px-8 shadow-[3px_4px_0px_0px_#0a111a] hover:shadow-[5px_6px_0px_0px_#0a111a] active:translate-y-0.5 active:shadow-[1px_2px_0px_0px_#0a111a] flex items-center justify-center gap-4 transition-all cursor-pointer group"
+            title="Нажмите для переключения режима"
+          >
+            <!-- White chalk handwritten text -->
+            <span
+              id="modeBtnText"
+              class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-wide text-white leading-none whitespace-nowrap"
+            >
+              Turn to IELTS
+            </span>
+
+            <!-- Hand-drawn sketched arrow -->
+            <div id="modeArrowWrap" class="transition-transform duration-300 group-hover:translate-x-1.5">
+              <svg
+                class="w-10 h-7 sm:w-14 sm:h-9"
+                viewBox="0 0 60 28"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M3 14H48" stroke="white" stroke-width="4" stroke-linecap="round" />
+                <path d="M36 4L54 14L36 24" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M40 9L44 14L40 19" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.85" />
+              </svg>
+            </div>
+          </button>
+        </div>
+
+        <!-- WHITE DASHBOARD CONTAINER CARD -->
+        <div class="sketch-card flex-1 bg-white p-4 sm:p-6 lg:p-7 flex flex-col justify-between gap-4 shadow-[2px_3px_0px_0px_#0a111a]">
+          
+          <!-- Title with sketched underline -->
+          <div>
+            <h1
+              id="examTitle"
+              class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-[#0a111a] tracking-tight leading-none inline-block relative"
+            >
+              Digital SAT
+              <!-- Underline -->
+              <span class="block w-full h-[4.5px] bg-[#0a111a] rounded-full mt-1.5 transform -rotate-0.5"></span>
+            </h1>
+          </div>
+
+          <!-- INNER CARD: "Till Exam:" -->
+          <div class="sketch-inner w-full bg-[#ffffff] p-4 sm:p-6 flex flex-col justify-between gap-5 relative">
+            
+            <!-- Card Header -->
+            <div class="flex items-center justify-between">
+              <h2 class="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0a111a] tracking-wide leading-none">
+                Till Exam:
+              </h2>
+              <span class="text-sm font-sans font-bold text-slate-400 hidden sm:inline">
+                (кликните на дни или Aim для редактирования)
+              </span>
+            </div>
+
+            <!-- ROW 1: Clock + [X] days & Aim Badge -->
+            <div class="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+              
+              <!-- Clock + Days -->
+              <div class="flex items-center gap-3 sm:gap-4">
+                <div class="sketch-circle w-14 h-14 sm:w-16 sm:h-16 rounded-full border-[3.5px] border-[#0a111a] bg-white flex items-center justify-center shrink-0">
+                  <svg class="w-10 h-10 sm:w-11 sm:h-11" viewBox="0 0 40 40" fill="none">
+                    <line x1="20" y1="20" x2="20" y2="9" stroke="#0a111a" stroke-width="3.5" stroke-linecap="round" />
+                    <line x1="20" y1="20" x2="29" y2="24" stroke="#0a111a" stroke-width="3.5" stroke-linecap="round" />
+                    <circle cx="20" cy="20" r="2.5" fill="#0a111a" />
+                  </svg>
+                </div>
+
+                <div onclick="editDaysPrompt()" class="cursor-pointer hover:opacity-80 transition" title="Кликните для изменения дней">
+                  <span id="countdownDays" class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-[#0a111a] tracking-tight leading-none">
+                    48 days
+                  </span>
+                </div>
+              </div>
+
+              <!-- Aim Badge: Rounded box with diagonal scribble pattern from photo -->
+              <div
+                id="aimBadge"
+                onclick="editAimPrompt()"
+                class="aim-hatch border-[3.5px] border-[#0a111a] px-5 sm:px-7 py-2 text-center cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-[1px_2px_0px_0px_#0a111a] min-w-[120px]"
+                title="Кликните для изменения цели"
+              >
+                <div class="text-2xl sm:text-3xl font-extrabold text-[#0a111a] leading-none" style="text-shadow: 1px 1px 0px rgba(255,255,255,0.4);">
+                  Aim
+                </div>
+                <div id="aimScore" class="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0a111a] leading-none" style="text-shadow: 1px 1px 0px rgba(255,255,255,0.4);">
+                  1600
+                </div>
+              </div>
+
+            </div>
+
+            <!-- ROW 2: PROGRESS BAR TRACK + 4 CIRCULAR NODES + NUMBERS -->
+            <div class="pt-2 pb-2">
+              <div class="relative flex items-center justify-between w-full px-2 sm:px-6">
+                
+                <!-- Chunky Horizontal Bar Track -->
+                <div class="absolute left-4 right-4 sm:left-8 sm:right-8 h-6 sm:h-7 bg-[#8faec2] border-[3.5px] border-[#0a111a] rounded-full z-0"></div>
+
+                <!-- 4 Checkpoints Container -->
+                <div id="checkpointsRow" class="w-full flex items-center justify-between relative z-10">
+                  <!-- Populated dynamically via JS -->
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </main>
+
+    </div>
+
+  </div>
+
+  <!-- JAVASCRIPT STATE ENGINE -->
+  <script>
+    const STATE = {
+      mode: 'SAT',
+      activeItem: 'Reading & Writing',
+      days: 48,
+      satAim: '1600',
+      ieltsAim: 'Band 8.5',
+      sat: {
+        title: 'Digital SAT',
+        btnText: 'Turn to IELTS',
+        menuItems: [
+          { id: 'dashboard', label: 'Dashboard' },
+          { id: 'rw', label: 'Reading & Writing' },
+          { id: 'math', label: 'Math' },
+          { id: 'mocks', label: 'Full Mocks' },
+          { id: 'flashcards', label: 'Flashcards' },
+        ],
+        checkpoints: [
+          { value: 400, label: '400', isDarkTarget: false },
+          { value: 800, label: '800', isDarkTarget: false },
+          { value: 1200, label: '1200', isDarkTarget: false },
+          { value: 1600, label: '1600', isDarkTarget: true },
+        ]
+      },
+      ielts: {
+        title: 'IELTS Academic',
+        btnText: 'Turn to SAT',
+        menuItems: [
+          { id: 'dashboard', label: 'Dashboard' },
+          { id: 'reading', label: 'Reading' },
+          { id: 'listening', label: 'Listening' },
+          { id: 'writing', label: 'Writing' },
+          { id: 'speaking', label: 'Speaking' },
+          { id: 'translator', label: 'Translator' },
+        ],
+        checkpoints: [
+          { value: 0, label: '0', isDarkTarget: false },
+          { value: 5.0, label: '5.0', isDarkTarget: false },
+          { value: 6.5, label: '6.5', isDarkTarget: false },
+          { value: 9.0, label: '9.0', isDarkTarget: true },
+        ]
+      }
+    };
+
+    const elModeBtnText = document.getElementById('modeBtnText');
+    const elModeArrowWrap = document.getElementById('modeArrowWrap');
+    const elSidebarNav = document.getElementById('sidebarNav');
+    const elExamTitle = document.getElementById('examTitle');
+    const elCountdownDays = document.getElementById('countdownDays');
+    const elAimScore = document.getElementById('aimScore');
+    const elCheckpointsRow = document.getElementById('checkpointsRow');
+
+    function render() {
+      const isSAT = STATE.mode === 'SAT';
+      const config = isSAT ? STATE.sat : STATE.ielts;
+
+      // 1. Top button
+      elModeBtnText.textContent = config.btnText;
+      if (isSAT) {
+        elModeArrowWrap.style.transform = 'rotate(0deg)';
+      } else {
+        elModeArrowWrap.style.transform = 'rotate(180deg)';
+      }
+
+      // 2. Sidebar items
+      elSidebarNav.innerHTML = '';
+      config.menuItems.forEach((item) => {
+        const isSelected = STATE.activeItem.toLowerCase() === item.label.toLowerCase();
+        const btn = document.createElement('button');
+        btn.onclick = () => {
+          STATE.activeItem = item.label;
+          render();
+        };
+
+        btn.className = `w-full text-left px-3.5 py-3 border-b-[3.5px] border-[#0a111a] text-2xl sm:text-[26px] font-bold tracking-wide transition-all cursor-pointer block leading-tight ${
+          isSelected
+            ? 'bg-[#0a111a] text-white'
+            : 'bg-transparent text-[#0a111a] hover:bg-[#c6d8e5]'
+        }`;
+
+        if (item.label === 'Reading & Writing' && isSAT) {
+          btn.innerHTML = `
+            <div class="flex flex-col">
+              <span class="text-xl sm:text-2xl leading-none">SAT</span>
+              <span class="text-2xl sm:text-[28px] font-extrabold leading-none -mt-0.5">R&amp;W</span>
+            </div>
+          `;
+        } else if (item.label === 'Dashboard') {
+          btn.innerHTML = `
+            <div class="leading-tight">
+              <span>Dash</span>
+              <br />
+              <span class="-mt-1 block">board</span>
+            </div>
+          `;
+        } else {
+          btn.textContent = item.label;
+        }
+
+        elSidebarNav.appendChild(btn);
+      });
+
+      // 3. Exam title with underline
+      elExamTitle.innerHTML = `
+        ${config.title}
+        <span class="block w-full h-[4.5px] bg-[#0a111a] rounded-full mt-1.5 transform -rotate-0.5"></span>
+      `;
+
+      // 4. Days & Aim
+      elCountdownDays.textContent = `${STATE.days} days`;
+      elAimScore.textContent = isSAT ? STATE.satAim : STATE.ieltsAim;
+
+      // 5. Checkpoints
+      elCheckpointsRow.innerHTML = '';
+      config.checkpoints.forEach((cp) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'relative flex flex-col items-center';
+
+        const node = document.createElement('div');
+        node.className = `sketch-circle w-9 h-9 sm:w-11 sm:h-11 rounded-full border-[3.5px] border-[#0a111a] transition-all hover:scale-110 flex items-center justify-center ${
+          cp.isDarkTarget ? 'bg-[#0a111a]' : 'bg-[#5c849e]'
+        }`;
+
+        const num = document.createElement('div');
+        num.className = 'text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0a111a] mt-2 select-none';
+        num.textContent = cp.label;
+
+        wrap.appendChild(node);
+        wrap.appendChild(num);
+        elCheckpointsRow.appendChild(wrap);
+      });
+    }
+
+    function toggleExamMode() {
+      STATE.mode = STATE.mode === 'SAT' ? 'IELTS' : 'SAT';
+      STATE.activeItem = STATE.mode === 'SAT' ? 'Reading & Writing' : 'Reading';
+      render();
+    }
+
+    function editDaysPrompt() {
+      const input = prompt("Сколько дней осталось до экзамена?", String(STATE.days));
+      if (input) {
+        const num = parseInt(input.trim(), 10);
+        if (!isNaN(num) && num > 0) {
+          STATE.days = num;
+          render();
+        }
+      }
+    }
+
+    function editAimPrompt() {
+      const current = STATE.mode === 'SAT' ? STATE.satAim : STATE.ieltsAim;
+      const input = prompt("Укажите целевой балл (Aim):", current);
+      if (input && input.trim()) {
+        if (STATE.mode === 'SAT') STATE.satAim = input.trim();
+        else STATE.ieltsAim = input.trim();
+        render();
+      }
+    }
+
+    function toggleSidebarExpand() {
+      elSidebarNav.classList.toggle('hidden');
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 't' || e.key === 'T' || e.key === ' ') {
+        if (e.key === ' ') e.preventDefault();
+        toggleExamMode();
+      }
+    });
+
+    render();
+  </script>
+
+</body>
+</html>

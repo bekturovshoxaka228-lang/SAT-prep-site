@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ClickEffect } from "@/components/click-effect";
 import { CustomCursor } from "@/components/custom-cursor";
+import { ExamModeProvider } from "@/lib/exam-mode-context";
 
 export const metadata: Metadata = {
   title: "PrepSphere • IELTS Academic & Digital SAT Prep",
@@ -47,9 +48,11 @@ export default function RootLayout({
       </head>
       <body className="bg-[var(--background)] text-[var(--foreground)] min-h-screen antialiased selection:bg-[#007EA7] selection:text-white transition-colors duration-150">
         <ThemeProvider>
-          <CustomCursor />
-          <ClickEffect />
-          {children}
+          <ExamModeProvider>
+            <CustomCursor />
+            <ClickEffect />
+            {children}
+          </ExamModeProvider>
         </ThemeProvider>
       </body>
     </html>

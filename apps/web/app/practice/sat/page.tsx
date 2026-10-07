@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   ArrowLeft,
   Clock,
+  Timer,
+  Pause,
+  Play,
   Calculator,
   CheckCircle2,
   XCircle,
@@ -22,9 +25,26 @@ import {
   X,
   BarChart3,
   Maximize2,
+  Minus,
+  PanelRight,
+  PanelLeft,
 } from "lucide-react";
 import { AiSolutionReviewer, AiRecommendationCard } from "@/components/ai-solution-reviewer";
 import { VocabularyDrawer } from "@/components/vocabulary-drawer";
+import { StudentProducedResponse } from "@/components/student-produced-response";
+import { MathRenderer } from "@/components/math-renderer";
+import { MathStimulusCard } from "@/components/smart-math-renderer";
+import {
+  BluebookHeader,
+  BluebookBanner,
+  BluebookRwTask,
+  BluebookMathMcqTask,
+  BluebookGridIn,
+  BluebookFooter,
+  BluebookReferenceSheet,
+  BluebookDirectionsModal,
+  BluebookMoreModal,
+} from "@/components/bluebook";
 import {
   RW_DOMAINS,
   MATH_DOMAINS,
@@ -34,13 +54,23 @@ import {
 } from "@/lib/sat-data";
 
 function formatUnderlineText(text: string) {
-  if (!text.includes("<u>")) {
+  if (!text.includes("<u>") && !text.includes("</u>")) {
     return text;
   }
-  const parts = text.split(/(<u>.*?<\/u>)/g);
+  // 1. Sanitize any duplicate or malformed <u> / </u> tags
+  const sanitized = text
+    .replace(/(?:<u\b[^>]*>\s*)+/gi, "<u>")
+    .replace(/(?:\s*<\/u\b[^>]*>)+/gi, "</u>");
+
+  // 2. Split by clean <u>...</u> boundaries
+  const parts = sanitized.split(/(<u>[\s\S]*?<\/u>)/g);
+
   return parts.map((part, idx) => {
     if (part.startsWith("<u>") && part.endsWith("</u>")) {
-      const inner = part.slice(3, -4);
+      const inner = part
+        .slice(3, -4)
+        .replace(/<\/?u\b[^>]*>/gi, "")
+        .trim();
       return (
         <span
           key={idx}
@@ -50,12 +80,17 @@ function formatUnderlineText(text: string) {
         </span>
       );
     }
-    return <span key={idx}>{part}</span>;
+    // Strip any rogue remaining <u> or </u> or malformed tags in normal text
+    const cleanPart = part.replace(/<\/?u\b[^>]*>/gi, "");
+    return <span key={idx}>{cleanPart}</span>;
   });
 }
 
 function renderFormattedPassage(text: string) {
-  const paragraphs = text
+  if (!text) return null;
+  // Clean unintended comma+newlines and hard mid-sentence linebreaks
+  const sanitized = text.replace(/,\s*\n+\s*/g, ", ");
+  const paragraphs = sanitized
     .split(/\n\s*\n/)
     .map((p) => p.trim())
     .filter(Boolean);
@@ -75,6 +110,30 @@ function renderFormattedPassage(text: string) {
               {lines.map((line, lIdx) => (
                 <div key={lIdx}>{formatUnderlineText(line)}</div>
               ))}
+            </div>
+          );
+        }
+
+        const isBulletList = lines.some((l) => l.startsWith("•") || l.startsWith("-"));
+        if (isBulletList) {
+          return (
+            <div key={pIdx} className="space-y-2">
+              {lines.map((line, lIdx) => {
+                if (line.startsWith("•") || line.startsWith("-")) {
+                  const bulletText = line.replace(/^[•\-]\s*/, "");
+                  return (
+                    <div key={lIdx} className="flex items-start gap-2.5 pl-1.5 text-slate-800 dark:text-slate-200">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-700 dark:bg-slate-300 mt-2 shrink-0" />
+                      <span className="flex-1 leading-relaxed">{formatUnderlineText(bulletText)}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <p key={lIdx} className="text-slate-800 dark:text-slate-200 leading-relaxed font-medium pb-1">
+                    {formatUnderlineText(line)}
+                  </p>
+                );
+              })}
             </div>
           );
         }
@@ -118,7 +177,7 @@ function SatPracticeContent() {
 
   const initialTab = targetQuestion
     ? targetQuestion.section
-    : searchParams.get("tab") === "math"
+    : searchParams.get("tab") === "math" || searchParams.get("section") === "math"
     ? "math"
     : "rw";
   const initialDomain = targetQuestion
@@ -136,12 +195,117 @@ function SatPracticeContent() {
   const [selectedSubtopic, setSelectedSubtopic] = useState<string>(initialSubtopic);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>(initialDifficulty);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [isCalcMinimized, setIsCalcMinimized] = useState(false);
+  const [calcDock, setCalcDock] = useState<"right" | "left" | "custom">("right");
+  const [calcPos, setCalcPos] = useState<{ x: number; y: number }>({ x: 0, y: 76 });
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0,
+  });
+  const calcCardRef = useRef<HTMLDivElement>(null);
+
+  const handleDragStart = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    isDraggingRef.current = true;
+
+    const rect = calcCardRef.current?.getBoundingClientRect();
+    const currentLeft = rect ? rect.left : window.innerWidth - 560;
+    const currentTop = rect ? rect.top : 76;
+
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: currentLeft,
+      initY: currentTop,
+    };
+    setCalcDock("custom");
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const dx = moveEvent.clientX - dragStartRef.current.startX;
+      const dy = moveEvent.clientY - dragStartRef.current.startY;
+      const newX = Math.max(10, Math.min(window.innerWidth - 320, dragStartRef.current.initX + dx));
+      const newY = Math.max(10, Math.min(window.innerHeight - 120, dragStartRef.current.initY + dy));
+      setCalcPos({ x: newX, y: newY });
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    isDraggingRef.current = true;
+
+    const rect = calcCardRef.current?.getBoundingClientRect();
+    const currentLeft = rect ? rect.left : window.innerWidth - 560;
+    const currentTop = rect ? rect.top : 76;
+
+    dragStartRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      initX: currentLeft,
+      initY: currentTop,
+    };
+    setCalcDock("custom");
+
+    const onTouchMove = (moveEvent: TouchEvent) => {
+      if (!isDraggingRef.current || moveEvent.touches.length !== 1) return;
+      const t = moveEvent.touches[0];
+      const dx = t.clientX - dragStartRef.current.startX;
+      const dy = t.clientY - dragStartRef.current.startY;
+      const newX = Math.max(10, Math.min(window.innerWidth - 320, dragStartRef.current.initX + dx));
+      const newY = Math.max(10, Math.min(window.innerHeight - 120, dragStartRef.current.initY + dy));
+      setCalcPos({ x: newX, y: newY });
+    };
+
+    const onTouchEnd = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd);
+  };
   const [isVocabOpen, setIsVocabOpen] = useState(false);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [aiInitialQuestion, setAiInitialQuestion] = useState<string | undefined>(undefined);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
+  const handleOpenAiWhy = (questionPrompt?: string) => {
+    setAiInitialQuestion(questionPrompt || "Почему правильный ответ именно такой?");
+    setIsAiDrawerOpen(true);
+  };
+
   // Active question index within filtered questions
-  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(() => {
+    const qParam = targetQuestion?.id || qIdParam;
+    if (qParam) {
+      const pool = ALL_SAT_QUESTIONS.filter((q) => {
+        if (q.section !== initialTab) return false;
+        if (initialDomain !== "all" && q.domainId !== initialDomain) return false;
+        if (initialSubtopic !== "all" && q.subtopicId !== initialSubtopic) return false;
+        if (initialDifficulty !== "all" && q.difficulty !== initialDifficulty) return false;
+        return true;
+      });
+      const idx = pool.findIndex((q) => q.id === qParam);
+      if (idx !== -1) return idx;
+    }
+    return 0;
+  });
 
   // Bluebook-style Question Review Modal state
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
@@ -151,19 +315,62 @@ function SatPracticeContent() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submittedStatus, setSubmittedStatus] = useState<Record<string, boolean>>({});
   const [markedForReview, setMarkedForReview] = useState<Record<string, boolean>>({});
+  const [eliminatedOptionsMap, setEliminatedOptionsMap] = useState<Record<string, string[]>>({});
 
-  // Countdown timer
+  // Bluebook Modals
+  const [isDirectionsOpen, setIsDirectionsOpen] = useState(false);
+  const [isReferenceOpen, setIsReferenceOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+
+  // Check if we are in Full Module / Mock Test mode or Topic Practice mode
+  const moduleParam = searchParams.get("module") || searchParams.get("mockExam");
+  const isModuleMode = Boolean(moduleParam);
+
+  // Timer & Stopwatch state
+  const [isPaused, setIsPaused] = useState(false);
   const [timeLeft, setTimeLeft] = useState(initialTab === "math" ? 2100 : 1920);
+  const [stopwatchTime, setStopwatchTime] = useState(0);
 
+  // Sync module timer duration on tab/module change
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    if (isModuleMode) {
+      setTimeLeft(activeTab === "math" ? 2100 : 1920);
+      setIsPaused(false);
+    }
+  }, [activeTab, isModuleMode, moduleParam]);
 
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
+  // Reset stopwatch when subtopic or domain or tab changes in practice mode
+  useEffect(() => {
+    if (!isModuleMode) {
+      setStopwatchTime(0);
+      setIsPaused(false);
+    }
+  }, [selectedSubtopic, selectedDomain, activeTab, isModuleMode]);
+
+  // Timer / Stopwatch ticker
+  useEffect(() => {
+    if (isPaused) return;
+
+    const timer = setInterval(() => {
+      if (isModuleMode) {
+        setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      } else {
+        setStopwatchTime((prev) => prev + 1);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isPaused, isModuleMode]);
+
+  const formatTime = (totalSeconds: number) => {
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    if (hrs > 0) {
+      return `${hrs}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
 
   // Sync tab, domain, subtopic, difficulty & qId from search params
   useEffect(() => {
@@ -179,7 +386,7 @@ function SatPracticeContent() {
       }
     }
 
-    const tabParam = searchParams.get("tab");
+    const tabParam = searchParams.get("tab") || searchParams.get("section");
     const domainParam = searchParams.get("domain");
     const subtopicParam = searchParams.get("subtopic");
     const difficultyParam = searchParams.get("difficulty");
@@ -191,11 +398,7 @@ function SatPracticeContent() {
       setSelectedDomain(domainParam);
     }
     if (subtopicParam) {
-      if (["evidence", "evidence-textual", "evidence-quantitative", "command-of-evidence"].includes(subtopicParam)) {
-        setSelectedSubtopic("command-of-evidence");
-      } else {
-        setSelectedSubtopic(subtopicParam);
-      }
+      setSelectedSubtopic(subtopicParam);
     }
     if (difficultyParam) {
       setSelectedDifficulty(difficultyParam);
@@ -210,6 +413,13 @@ function SatPracticeContent() {
 
   // Active subtopic name for display
   const currentSubtopicName = useMemo(() => {
+    if (isModuleMode) {
+      if (moduleParam === "rw-mod-1") return "Reading & Writing • Модуль 1";
+      if (moduleParam === "rw-mod-2-hard") return "Reading & Writing • Модуль 2 (Сложный)";
+      if (moduleParam === "math-mod-1") return "Math • Модуль 1";
+      if (moduleParam === "math-mod-2-hard") return "Math • Модуль 2 (Сложный)";
+      return "Полный модуль";
+    }
     if (selectedSubtopic && selectedSubtopic !== "all" && activeDomainMeta) {
       const found = activeDomainMeta.subtopics.find((s) => s.id === selectedSubtopic);
       if (found) return found.name;
@@ -223,11 +433,21 @@ function SatPracticeContent() {
     if (currentQ) {
       return currentQ.subtopic;
     }
-    return activeDomainMeta ? activeDomainMeta.name : "All Task Types";
-  }, [selectedSubtopic, activeDomainMeta, activeTab, selectedDomain]);
+    return activeDomainMeta ? activeDomainMeta.name : "Все типы заданий";
+  }, [selectedSubtopic, activeDomainMeta, activeTab, selectedDomain, isModuleMode, moduleParam]);
 
   // Filtered questions based on active section, domain, subtopic, and difficulty
   const filteredQuestions = useMemo(() => {
+    if (isModuleMode) {
+      const isHard = moduleParam?.toLowerCase().includes("hard");
+      let pool = ALL_SAT_QUESTIONS.filter((q) => q.section === activeTab);
+      if (isHard) {
+        pool = pool.filter((q) => q.difficulty === "hard" || q.difficulty === "medium");
+      }
+      const count = activeTab === "math" ? 22 : 27;
+      return pool.slice(0, count);
+    }
+
     return ALL_SAT_QUESTIONS.filter((q) => {
       if (q.section !== activeTab) return false;
       if (selectedDomain !== "all" && q.domainId !== selectedDomain) return false;
@@ -243,7 +463,7 @@ function SatPracticeContent() {
       if (selectedDifficulty !== "all" && q.difficulty !== selectedDifficulty) return false;
       return true;
     });
-  }, [activeTab, selectedDomain, selectedSubtopic, selectedDifficulty]);
+  }, [activeTab, selectedDomain, selectedSubtopic, selectedDifficulty, isModuleMode, moduleParam]);
 
   // Jump to specific question if qId matches in filtered list
   useEffect(() => {
@@ -275,7 +495,7 @@ function SatPracticeContent() {
   };
 
   const handleCheck = () => {
-    if (!currentQuestion) return;
+    if (!currentQuestion || !currentAnswer) return;
     setSubmittedStatus((prev) => ({ ...prev, [currentQuestion.id]: true }));
   };
 
@@ -283,6 +503,33 @@ function SatPracticeContent() {
     if (!currentQuestion) return;
     setSubmittedStatus((prev) => ({ ...prev, [currentQuestion.id]: false }));
   };
+
+  const toggleMarkReview = () => {
+    if (!currentQuestion) return;
+    setMarkedForReview((prev) => ({
+      ...prev,
+      [currentQuestion.id]: !prev[currentQuestion.id],
+    }));
+  };
+
+  const toggleEliminateOption = (optionId: string) => {
+    if (!currentQuestion) return;
+    setEliminatedOptionsMap((prev) => {
+      const existing = prev[currentQuestion.id] || [];
+      const set = new Set(existing);
+      if (set.has(optionId)) {
+        set.delete(optionId);
+      } else {
+        set.add(optionId);
+      }
+      return { ...prev, [currentQuestion.id]: Array.from(set) };
+    });
+  };
+
+  const currentEliminatedSet = useMemo(() => {
+    if (!currentQuestion) return new Set<string>();
+    return new Set(eliminatedOptionsMap[currentQuestion.id] || []);
+  }, [currentQuestion, eliminatedOptionsMap]);
 
   const handleBack = () => {
     if (activeQuestionIndex > 0) {
@@ -296,24 +543,18 @@ function SatPracticeContent() {
     }
   };
 
-  const toggleMarkReview = () => {
-    if (!currentQuestion) return;
-    setMarkedForReview((prev) => ({
-      ...prev,
-      [currentQuestion.id]: !prev[currentQuestion.id],
-    }));
-  };
-
-  // Close modal on Escape key press
+  // Close modal on Escape key press or unpause
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isQuestionModalOpen) {
-        setIsQuestionModalOpen(false);
+      if (e.key === "Escape") {
+        if (isQuestionModalOpen) setIsQuestionModalOpen(false);
+        if (isPaused) setIsPaused(false);
+        if (zoomedImage) setZoomedImage(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isQuestionModalOpen]);
+  }, [isQuestionModalOpen, isPaused, zoomedImage]);
 
   // Statistics for Bluebook Question Review Modal
   const modalStats = useMemo(() => {
@@ -356,398 +597,160 @@ function SatPracticeContent() {
       });
   }, [filteredQuestions, modalFilter, answers, markedForReview]);
 
-  const isCorrect =
-    currentQuestion &&
-    (currentQuestion.type === "mcq"
-      ? currentAnswer.toUpperCase() === currentQuestion.correctAnswer.toUpperCase()
-      : currentAnswer.trim() === currentQuestion.correctAnswer.trim());
+  const isCorrect = useMemo(() => {
+    if (!currentQuestion || !currentAnswer.trim()) return false;
+    if (currentQuestion.type === "mcq") {
+      return currentAnswer.toUpperCase().trim() === currentQuestion.correctAnswer.toUpperCase().trim();
+    }
+    const userVal = currentAnswer.trim().toLowerCase();
+    const acceptedVals = currentQuestion.correctAnswer
+      .split(",")
+      .map((s) => s.trim().toLowerCase());
+    if (acceptedVals.includes(userVal)) return true;
+
+    const parseNum = (v: string): number | null => {
+      if (v.includes("/")) {
+        const parts = v.split("/").map(Number);
+        return parts.length === 2 && parts[1] !== 0 ? parts[0] / parts[1] : null;
+      }
+      const n = Number(v);
+      return isNaN(n) ? null : n;
+    };
+    const userNum = parseNum(userVal);
+    if (userNum !== null) {
+      for (const acc of acceptedVals) {
+        const accNum = parseNum(acc);
+        if (accNum !== null && Math.abs(userNum - accNum) < 0.001) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [currentQuestion, currentAnswer]);
+
+  const hasStimulus = Boolean(currentQuestion?.passage || currentQuestion?.image);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
-      {/* Top Test Header in style of Bluebook / Digital SAT */}
-      <header className="border-b border-slate-200/70 dark:border-white/[0.07] bg-white/95 dark:bg-[#090d16]/95 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <Link
-            href={activeTab === "math" ? "/practice/sat-math" : "/practice/sat-rw"}
-            className="quiz-option-btn flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
-          >
-            <ArrowLeft className="w-4 h-4" strokeWidth={1.75} /> Назад в меню
-          </Link>
-          <span className="text-slate-200 dark:text-white/[0.1]">|</span>
-          <span className="text-xs font-semibold text-[#007EA7] dark:text-[#00A8E8] bg-sky-50 dark:bg-sky-950/50 px-3 py-1 rounded-full">
-            Digital SAT • {activeTab === "rw" ? "Reading & Writing" : "Math"}
-          </span>
-        </div>
+      {/* Top Test Header in authentic Bluebook exam style */}
+      <BluebookHeader
+        section={activeTab}
+        sectionTitle={
+          isModuleMode
+            ? currentSubtopicName
+            : activeTab === "rw"
+            ? "Section 1: Reading and Writing"
+            : "Section II, Module 1: Math"
+        }
+        timeFormatted={isModuleMode ? formatTime(timeLeft) : formatTime(stopwatchTime)}
+        isPaused={isPaused}
+        onTogglePause={() => setIsPaused((prev) => !prev)}
+        onOpenDirections={() => setIsDirectionsOpen(true)}
+        onOpenCalculator={() => {
+          if (showCalculator && isCalcMinimized) {
+            setIsCalcMinimized(false);
+          } else {
+            setShowCalculator(!showCalculator);
+            setIsCalcMinimized(false);
+          }
+        }}
+        onOpenReference={() => setIsReferenceOpen(true)}
+        onOpenMore={() => setIsMoreOpen(true)}
+        onOpenHighlights={() => setIsVocabOpen(true)}
+        isCalculatorActive={showCalculator && !isCalcMinimized}
+        backHref={activeTab === "math" ? "/practice/sat-math" : "/practice/sat-rw"}
+      />
 
-        {/* Informative Current Task Badge (Non-interactive) */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-white/[0.05] text-xs">
-          <span className="text-slate-400 font-medium">Задание:</span>
-          <span className="font-semibold text-slate-800 dark:text-slate-200">
-            {currentSubtopicName}
-          </span>
-        </div>
+      {/* Authentic Bluebook Navy Subheader Banner */}
+      <BluebookBanner label={isModuleMode ? "THIS IS A PRACTICE TEST" : "THIS IS A PRACTICE TEST"} />
 
-        {/* Quick Tools */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsVocabOpen(true)}
-            className={`quiz-option-btn flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${
-              isVocabOpen
-                ? "bg-indigo-600 text-white shadow-xs"
-                : "bg-slate-100 dark:bg-white/[0.05] text-slate-700 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-white/[0.09]"
-            }`}
-            title="Open Academic Vocabulary Bank"
-          >
-            <BookA className="w-3.5 h-3.5 text-indigo-500" strokeWidth={1.75} />
-            <span className="hidden sm:inline">Словарь</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowCalculator(!showCalculator)}
-            className={`quiz-option-btn flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${
-              showCalculator
-                ? "bg-[#007EA7] text-white shadow-xs"
-                : "bg-slate-100 dark:bg-white/[0.05] text-slate-700 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-white/[0.09]"
-            }`}
-          >
-            <Calculator className="w-3.5 h-3.5 text-[#007EA7] dark:text-[#00A8E8]" strokeWidth={1.75} />
-            <span className="hidden sm:inline">Калькулятор</span>
-          </button>
-
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/[0.05] px-3 py-1.5 rounded-full text-xs font-mono font-semibold text-slate-800 dark:text-slate-200">
-            <Clock className="w-3.5 h-3.5 text-[#007EA7] dark:text-[#00A8E8]" strokeWidth={1.75} />
-            <span>
-              {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-            </span>
-          </div>
-
-          <ThemeToggle />
-        </div>
-      </header>
-
-      {/* Simulator Layout */}
-      <div className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-7 flex flex-col justify-between space-y-5">
-        {/* Desmos Calculator Panel if toggled */}
-        {showCalculator && (
-          <div className="bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] rounded-3xl p-4 shadow-xl">
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-white/[0.05] text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <Calculator className="w-4 h-4 text-[#007EA7]" strokeWidth={1.75} /> Калькулятор Desmos
-              </span>
-              <button
-                onClick={() => setShowCalculator(false)}
-                className="quiz-option-btn text-slate-400 hover:text-slate-900 dark:hover:text-white text-xs font-bold px-2 py-0.5 rounded-full"
-              >
-                ✕ Закрыть
-              </button>
-            </div>
-            <iframe
-              src="https://www.desmos.com/calculator"
-              className="w-full h-80 rounded-2xl border border-slate-100 dark:border-white/[0.05] bg-white"
-              title="Desmos Graphing Calculator"
-            />
-          </div>
-        )}
-
-        {/* Active Task Banner (Non-interactive: question type cannot be changed from within questions) */}
-        {/* Current Question Display Card */}
+      {/* Authentic Full-Width Digital SAT Bluebook Canvas */}
+      <main
+        className={`flex-1 w-full flex flex-col justify-between transition-all duration-300 ease-out ${
+          showCalculator && !isCalcMinimized
+            ? calcDock === "right"
+              ? "lg:pr-[460px]"
+              : calcDock === "left"
+              ? "lg:pl-[460px]"
+              : ""
+            : ""
+        }`}
+      >
         {currentQuestion ? (
-          <div className="bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] p-6 sm:p-8 rounded-3xl shadow-xs transition-all space-y-6">
-            <div className="flex items-center justify-between gap-3 text-xs pb-4 border-b border-slate-100 dark:border-white/[0.05]">
-              {/* Question Number & Difficulty Level */}
-              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-                {/* Question Number Badge */}
-                <span className="font-semibold text-xs text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-white/[0.06] px-2.5 py-0.5 rounded-full border border-slate-200/70 dark:border-white/[0.08] flex items-center gap-1">
-                  <span>Вопрос</span>
-                  <span className="font-bold text-[#007EA7] dark:text-[#00A8E8]">
-                    {activeQuestionIndex + 1}
-                  </span>
-                  <span className="text-slate-400 dark:text-slate-500 font-normal">
-                    из {filteredQuestions.length}
-                  </span>
-                </span>
-
-                {/* Difficulty level badge */}
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium uppercase tracking-wider border flex items-center gap-1.5 ${
-                    currentQuestion.difficulty === "easy"
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/40"
-                      : currentQuestion.difficulty === "medium"
-                      ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/40"
-                      : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200/60 dark:border-rose-800/40"
-                  }`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      currentQuestion.difficulty === "easy"
-                        ? "bg-emerald-500"
-                        : currentQuestion.difficulty === "medium"
-                        ? "bg-amber-500"
-                        : "bg-rose-500"
-                    }`}
-                  />
-                  {currentQuestion.difficulty === "easy" ? "Easy" : currentQuestion.difficulty === "medium" ? "Medium" : "Hard"}
-                </span>
-
-                {/* Question Bank ID */}
-                {currentQuestion.originalId && (
-                  <span
-                    className="text-[11px] font-mono text-slate-400 dark:text-slate-500 px-2 py-0.5 rounded bg-slate-100/60 dark:bg-white/[0.03] border border-slate-200/40 dark:border-white/[0.05]"
-                    title="Официальный ID вопроса College Board"
-                  >
-                    ID: {currentQuestion.originalId}
-                  </span>
-                )}
-              </div>
-
-              {/* Mark for Review Button */}
-              <button
-                type="button"
-                onClick={toggleMarkReview}
-                className={`quiz-option-btn flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                  isCurrentMarked
-                    ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300/70 dark:border-amber-700/60 font-semibold"
-                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-white/[0.05] border border-slate-200/60 dark:border-white/[0.08]"
-                }`}
-                title="Отметить вопрос для повторного просмотра"
-              >
-                <Bookmark
-                  className={`w-3.5 h-3.5 ${isCurrentMarked ? "fill-amber-500 text-amber-500" : ""}`}
-                  strokeWidth={1.75}
-                />
-                <span>{isCurrentMarked ? "Отмечен для повтора" : "Отметить (Review)"}</span>
-              </button>
-            </div>
-
-            {/* Visual Graph / Table if question has an image */}
-            {currentQuestion.image && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400 px-1">
-                  <span className="flex items-center gap-1.5 text-[#007EA7] dark:text-[#00A8E8]">
-                    <BarChart3 className="w-4 h-4" strokeWidth={2} />
-                    <span>График / Таблица данных</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setZoomedImage(currentQuestion.image || null)}
-                    className="text-[11px] text-slate-500 hover:text-[#007EA7] dark:hover:text-[#00A8E8] flex items-center gap-1 transition px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/[0.05]"
-                    title="Нажмите, чтобы открыть во весь экран"
-                  >
-                    <Maximize2 className="w-3 h-3" />
-                    <span>Увеличить</span>
-                  </button>
-                </div>
-                <div
-                  onClick={() => setZoomedImage(currentQuestion.image || null)}
-                  className="group relative cursor-zoom-in p-4 sm:p-6 rounded-2xl bg-white border border-slate-200/90 dark:border-white/[0.12] shadow-2xs hover:border-[#007EA7]/50 dark:hover:border-[#00A8E8]/50 transition flex items-center justify-center overflow-hidden"
-                >
-                  {/* Clean white background container ensuring high contrast for black-and-white exam diagrams in all themes */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={currentQuestion.image}
-                    alt="График или таблица к вопросу"
-                    className="max-h-[360px] sm:max-h-[420px] w-auto max-w-full object-contain select-none transition-transform duration-200 group-hover:scale-[1.01]"
-                    loading="eager"
-                  />
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition bg-slate-900/80 text-white rounded-full p-2 pointer-events-none shadow-md">
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Reading Passage if applicable */}
-            {currentQuestion.passage && (
-              <div className="p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/[0.05] text-slate-800 dark:text-slate-200 text-[14.5px] sm:text-[15px] leading-relaxed font-serif">
-                {renderFormattedPassage(currentQuestion.passage)}
-              </div>
-            )}
-
-            {/* Question Stem */}
-            <h3 className="text-sm sm:text-[15px] font-semibold text-slate-900 dark:text-white leading-relaxed">
-              {currentQuestion.stem}
-            </h3>
-
-            {/* MCQ Options */}
-            {currentQuestion.type === "mcq" && currentQuestion.options && (
-              <div className="space-y-2.5 max-w-2xl">
-                {currentQuestion.options.map((opt) => {
-                  const isSelected = currentAnswer === opt.id;
-                  const isOptCorrect = opt.id === currentQuestion.correctAnswer;
-
-                  let btnStyles =
-                    "bg-slate-50/60 dark:bg-white/[0.02] border-slate-200/70 dark:border-white/[0.06] text-slate-800 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-white/[0.04] hover:border-slate-300/80 dark:hover:border-white/[0.1]";
-
-                  if (isCurrentSubmitted) {
-                    if (isSelected) {
-                      if (isOptCorrect) {
-                        btnStyles =
-                          "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-500/60 ring-1 ring-emerald-500/30 text-emerald-900 dark:text-emerald-200 font-medium";
-                      } else {
-                        btnStyles =
-                          "bg-red-50/80 dark:bg-red-950/30 border-red-500/60 ring-1 ring-red-500/30 text-red-900 dark:text-red-200 font-medium";
-                      }
-                    } else if (isOptCorrect) {
-                      btnStyles =
-                        "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500/40 text-emerald-800 dark:text-emerald-300";
-                    } else {
-                      btnStyles = "opacity-40 border-slate-200/60 dark:border-white/[0.04] text-slate-400";
-                    }
-                  } else if (isSelected) {
-                    btnStyles =
-                      "bg-sky-50/70 dark:bg-sky-950/40 border-[#007EA7] dark:border-[#00A8E8] ring-1 ring-[#007EA7]/40 text-slate-900 dark:text-white font-medium";
-                  }
-
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      disabled={isCurrentSubmitted}
-                      onClick={() => handleSelectAnswer(opt.id)}
-                      className={`quiz-option-btn w-full text-left p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between gap-3 text-sm transition-all ${btnStyles}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors shrink-0 ${
-                            isCurrentSubmitted && isSelected && !isOptCorrect
-                              ? "bg-red-500 text-white"
-                              : isCurrentSubmitted && isOptCorrect
-                              ? "bg-emerald-600 text-white"
-                              : isSelected
-                              ? "bg-[#007EA7] text-white"
-                              : "border border-slate-200 dark:border-white/[0.1] text-slate-500 dark:text-slate-400 bg-white dark:bg-white/[0.04]"
-                          }`}
-                        >
-                          {opt.id}
-                        </span>
-                        <span className="leading-relaxed">{opt.text}</span>
-                      </div>
-
-                      {isCurrentSubmitted && isSelected && !isOptCorrect && (
-                        <XCircle className="w-5 h-5 text-red-500 shrink-0" />
-                      )}
-                      {isCurrentSubmitted && isOptCorrect && (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Grid-In Numeric Input */}
-            {currentQuestion.type === "grid-in" && (
-              <div className="max-w-xs space-y-2">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                  Student-Produced Numeric Response:
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    disabled={isCurrentSubmitted}
-                    value={currentAnswer}
-                    onChange={(e) => handleSelectAnswer(e.target.value)}
-                    placeholder="Enter value (e.g. 25)..."
-                    className={`w-full rounded-2xl px-4 py-3 text-base font-mono font-semibold transition focus:outline-none ${
-                      isCurrentSubmitted
-                        ? isCorrect
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 ring-1 ring-emerald-500/30 text-emerald-900 dark:text-emerald-200"
-                          : "bg-red-50 dark:bg-red-950/40 border-2 border-red-500 ring-1 ring-red-500/30 text-red-900 dark:text-red-200"
-                        : "bg-slate-50/70 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.1] text-slate-900 dark:text-white placeholder-slate-400 focus:ring-1 focus:ring-[#007EA7] dark:focus:ring-[#00A8E8]"
-                    }`}
-                  />
-                  {isCurrentSubmitted && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {isCorrect ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : (
-                        <XCircle className="w-5 h-5 text-red-500" />
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Bottom Controls: BACK, QUESTION NAVIGATOR, CHECK, NEXT */}
-            <div className="mt-8 pt-5 border-t border-slate-100 dark:border-white/[0.05] flex items-center justify-between gap-3 flex-wrap">
-              {/* Back Button */}
-              <button
-                type="button"
-                onClick={handleBack}
-                disabled={activeQuestionIndex === 0}
-                className="quiz-option-btn px-4 py-2 rounded-full border border-slate-200/70 dark:border-white/[0.08] hover:bg-slate-100/70 dark:hover:bg-white/[0.05] text-slate-700 dark:text-slate-300 disabled:opacity-30 disabled:pointer-events-none text-xs font-medium flex items-center gap-1.5 transition"
-              >
-                <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
-                <span>Назад</span>
-              </button>
-
-              {/* Bluebook-style Question Navigation Button */}
-              <button
-                type="button"
-                onClick={() => setIsQuestionModalOpen(true)}
-                className="quiz-option-btn px-4 py-2 rounded-full border border-slate-200/80 dark:border-white/[0.1] bg-slate-50 dark:bg-white/[0.04] hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:border-[#007EA7]/40 text-slate-800 dark:text-slate-100 text-xs font-semibold flex items-center gap-2 transition shadow-2xs group"
-                title="Открыть окно всех вопросов (как в Bluebook)"
-              >
-                <LayoutGrid className="w-4 h-4 text-[#007EA7] dark:text-[#00A8E8]" strokeWidth={1.75} />
-                <span>Вопрос {activeQuestionIndex + 1} из {filteredQuestions.length}</span>
-                <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#007EA7] dark:group-hover:text-[#00A8E8] transition-transform group-hover:-translate-y-0.5" />
-              </button>
-
-              {/* Check / Try Again & Next Buttons */}
-              <div className="flex items-center gap-2">
-                {!isCurrentSubmitted ? (
-                  <button
-                    type="button"
-                    disabled={!currentAnswer.trim()}
-                    onClick={handleCheck}
-                    className="quiz-option-btn px-6 py-2 rounded-full bg-[#007EA7] hover:bg-[#0093C8] text-white text-xs font-semibold shadow-xs disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 transition"
-                  >
-                    <CheckCircle2 className="w-4 h-4" strokeWidth={1.75} />
-                    <span>Проверить ответ</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="quiz-option-btn px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-medium flex items-center gap-1.5 transition"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.75} />
-                    <span>Попробовать снова</span>
-                  </button>
-                )}
-
-                {/* Next Button */}
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  disabled={activeQuestionIndex === filteredQuestions.length - 1}
-                  className="quiz-option-btn px-5 py-2 rounded-full bg-[#007EA7] hover:bg-[#0093C8] text-white disabled:opacity-30 disabled:pointer-events-none text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
-                >
-                  <span>Далее</span>
-                  <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
-                </button>
-              </div>
-            </div>
-
-            {/* Instant AI Recommendation Banner when checked */}
-            {isCurrentSubmitted && (
-              <AiRecommendationCard
-                isCorrect={isCorrect}
-                correctAnswer={
-                  currentQuestion.type === "mcq"
-                    ? `Choice ${currentQuestion.correctAnswer}`
-                    : currentQuestion.correctAnswer
-                }
-                explanation={currentQuestion.explanation}
-                onOpenAi={() => setIsAiDrawerOpen(true)}
+          <div className="flex-1 flex flex-col bg-white dark:bg-[#0c101c]">
+            {/* Reading and Writing Task Window (Photo 1) */}
+            {currentQuestion.section === "rw" ? (
+              <BluebookRwTask
+                questionNumber={activeQuestionIndex + 1}
+                passage={currentQuestion.passage}
+                questionStem={currentQuestion.stem}
+                options={currentQuestion.options || []}
+                currentAnswer={currentAnswer}
+                onSelectAnswer={handleSelectAnswer}
+                isMarked={isCurrentMarked}
+                onToggleMark={toggleMarkReview}
+                eliminatedOptions={currentEliminatedSet}
+                onToggleEliminate={toggleEliminateOption}
+                isSubmitted={isCurrentSubmitted}
+                correctAnswer={currentQuestion.correctAnswer}
               />
+            ) : currentQuestion.type === "grid-in" ? (
+              /* Math Student-Produced Response / Grid-In Task Window (Photo 3) */
+              <BluebookGridIn
+                questionNumber={activeQuestionIndex + 1}
+                questionStem={currentQuestion.stem}
+                passage={currentQuestion.passage}
+                image={currentQuestion.image}
+                currentAnswer={currentAnswer}
+                onSelectAnswer={handleSelectAnswer}
+                isMarked={isCurrentMarked}
+                onToggleMark={toggleMarkReview}
+                isSubmitted={isCurrentSubmitted}
+                isCorrect={isCorrect}
+                correctAnswer={currentQuestion.correctAnswer}
+                onZoomImage={(img) => setZoomedImage(img)}
+              />
+            ) : (
+              /* Math Multiple Choice Task Window (Photo 2) */
+              <BluebookMathMcqTask
+                questionNumber={activeQuestionIndex + 1}
+                questionStem={currentQuestion.stem}
+                passage={currentQuestion.passage}
+                image={currentQuestion.image}
+                options={currentQuestion.options || []}
+                currentAnswer={currentAnswer}
+                onSelectAnswer={handleSelectAnswer}
+                isMarked={isCurrentMarked}
+                onToggleMark={toggleMarkReview}
+                eliminatedOptions={currentEliminatedSet}
+                onToggleEliminate={toggleEliminateOption}
+                isSubmitted={isCurrentSubmitted}
+                correctAnswer={currentQuestion.correctAnswer}
+                onZoomImage={(img) => setZoomedImage(img)}
+              />
+            )}
+
+            {/* Instant Pedagogical Recommendation Card when answer is submitted */}
+            {isCurrentSubmitted && (
+              <div className="border-t border-slate-200 dark:border-white/10 p-4 sm:p-6 bg-slate-50 dark:bg-white/[0.02]">
+                <div className="max-w-4xl mx-auto">
+                  <AiRecommendationCard
+                    isCorrect={isCorrect}
+                    correctAnswer={
+                      currentQuestion.type === "mcq"
+                        ? `Choice ${currentQuestion.correctAnswer}`
+                        : currentQuestion.correctAnswer
+                    }
+                    explanation={currentQuestion.explanation}
+                    onOpenAi={() => setIsAiDrawerOpen(true)}
+                    onAskWhy={handleOpenAiWhy}
+                  />
+                </div>
+              </div>
             )}
           </div>
         ) : (
-          <div className="bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] p-8 rounded-3xl text-center space-y-3">
+          <div className="p-12 text-center space-y-4">
             <p className="text-slate-600 dark:text-slate-400 text-sm">
               Вопросы не найдены по выбранным фильтрам.
             </p>
@@ -755,7 +758,7 @@ function SatPracticeContent() {
               <button
                 type="button"
                 onClick={() => setSelectedDifficulty("all")}
-                className="quiz-option-btn px-4 py-2 rounded-full bg-[#007EA7] hover:bg-[#0093C8] text-white text-xs font-semibold"
+                className="px-4 py-2 rounded-full bg-[#007EA7] hover:bg-[#0093C8] text-white text-xs font-semibold"
               >
                 Сбросить фильтр сложности
               </button>
@@ -766,13 +769,33 @@ function SatPracticeContent() {
                   setSelectedSubtopic("all");
                   setSelectedDifficulty("all");
                 }}
-                className="quiz-option-btn px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200/70 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-medium"
+                className="px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200/70 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-medium"
               >
                 Сбросить все фильтры
               </button>
             </div>
           </div>
         )}
+
+        {/* Authentic Bluebook Sticky Footer */}
+        <BluebookFooter
+          currentIndex={activeQuestionIndex}
+          totalQuestions={filteredQuestions.length}
+          onBack={handleBack}
+          onNext={handleNext}
+          onOpenNavigator={() => setIsQuestionModalOpen(true)}
+          onCheckAnswer={handleCheck}
+          onResetAnswer={handleReset}
+          isAnswerEntered={Boolean(currentAnswer.trim())}
+          isSubmitted={isCurrentSubmitted}
+          isLastQuestion={activeQuestionIndex === filteredQuestions.length - 1}
+          studentName={
+            activeTab === "rw"
+              ? "Reading & Writing Module"
+              : "Math Module"
+          }
+        />
+      </main>
 
         {/* Global Side Drawer Reviewer (Instant pedagogical breakdown) */}
         {currentQuestion && (
@@ -794,8 +817,13 @@ function SatPracticeContent() {
             }
             officialExplanation={currentQuestion.explanation}
             subject={activeTab === "rw" ? "sat-rw" : "sat-math"}
+            options={currentQuestion.options}
+            initialQuestion={aiInitialQuestion}
             isOpen={isAiDrawerOpen}
-            onClose={() => setIsAiDrawerOpen(false)}
+            onClose={() => {
+              setIsAiDrawerOpen(false);
+              setAiInitialQuestion(undefined);
+            }}
           />
         )}
 
@@ -1048,12 +1076,220 @@ function SatPracticeContent() {
           </div>
         )}
 
+        {/* Pause Modal */}
+        {isPaused && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={() => setIsPaused(false)}
+          >
+            <div
+              className="w-full max-w-sm bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-white/[0.1] rounded-3xl p-6 text-center shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center mx-auto text-amber-600 dark:text-amber-400">
+                <Pause className="w-7 h-7 fill-current" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {isModuleMode ? "Тестирование на паузе" : "Решение на паузе"}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isModuleMode
+                    ? "Таймер модуля остановлен. Вы можете сделать перерыв и продолжить в любое время."
+                    : "Секундомер остановлен. Вы можете отдохнуть и продолжить в любой момент."}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-100 dark:border-white/[0.06] text-left text-xs">
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02]">
+                  <span className="text-slate-400 block text-[11px] mb-1">
+                    {isModuleMode ? "Осталось времени" : "Затрачено времени"}
+                  </span>
+                  <span className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                    {isModuleMode ? formatTime(timeLeft) : formatTime(stopwatchTime)}
+                  </span>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02]">
+                  <span className="text-slate-400 block text-[11px] mb-1">Вопрос</span>
+                  <span className="text-base font-bold text-slate-900 dark:text-white">
+                    {activeQuestionIndex + 1} из {filteredQuestions.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPaused(false)}
+                  className="w-full py-2.5 px-4 rounded-full bg-[#007EA7] hover:bg-[#0093C8] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-xs"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>{isModuleMode ? "Возобновить тест" : "Продолжить решение"}</span>
+                </button>
+                {!isModuleMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStopwatchTime(0);
+                      setIsPaused(false);
+                    }}
+                    className="w-full py-2 px-4 rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300 text-xs font-medium flex items-center justify-center gap-1.5 transition"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Сбросить секундомер</span>
+                  </button>
+                )}
+                <Link
+                  href={activeTab === "math" ? "/practice/sat-math" : "/practice/sat-rw"}
+                  className="block text-center text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 pt-1 transition"
+                >
+                  Выйти в меню
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Time's Up Modal for Module mode */}
+        {isModuleMode && timeLeft === 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="w-full max-w-sm bg-white dark:bg-[#0c1322] border border-rose-200 dark:border-rose-900/60 rounded-3xl p-6 text-center shadow-2xl space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 flex items-center justify-center mx-auto text-rose-600 dark:text-rose-400">
+                <Clock className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Время вышло!</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Время, отведенное на данный модуль, завершилось. Вы можете проверить свои ответы в окне обзора.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuestionModalOpen(true)}
+                className="w-full py-2.5 px-4 rounded-full bg-[#007EA7] hover:bg-[#0093C8] text-white text-xs font-semibold transition shadow-xs"
+              >
+                Открыть обзор вопросов
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Footer info */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 dark:text-slate-500 pt-4 border-t border-slate-200/70 dark:border-white/[0.06]">
           <span>Официальная структура тем College Board Digital SAT</span>
           <span>Практика навыков Reading &amp; Writing и Math</span>
         </div>
+      {/* Bluebook Directions Modal */}
+      <BluebookDirectionsModal
+        isOpen={isDirectionsOpen}
+        section={activeTab}
+        onClose={() => setIsDirectionsOpen(false)}
+      />
+
+      {/* Bluebook SAT Math Reference Sheet Modal */}
+      <BluebookReferenceSheet
+        isOpen={isReferenceOpen}
+        onClose={() => setIsReferenceOpen(false)}
+      />
+
+      {/* Bluebook More Menu Modal */}
+      <BluebookMoreModal
+        isOpen={isMoreOpen}
+        onClose={() => setIsMoreOpen(false)}
+        onOpenDirections={() => setIsDirectionsOpen(true)}
+      />
+
+      {/* Floating / Docked Desmos Calculator (Movable & Persistent State) */}
+      <div
+        ref={calcCardRef}
+        style={
+          !showCalculator || isCalcMinimized
+            ? { display: "none" }
+            : calcDock === "right"
+            ? { top: "76px", right: "16px" }
+            : calcDock === "left"
+            ? { top: "76px", left: "16px" }
+            : { top: `${calcPos.y}px`, left: `${calcPos.x}px` }
+        }
+        className="fixed z-50 flex flex-col bg-white dark:bg-[#0b1220] border border-slate-200/90 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden w-[92vw] sm:w-[420px] lg:w-[440px] xl:w-[450px] h-[480px] sm:h-[500px] max-h-[76vh] resize min-w-[320px] min-h-[350px] select-none transition-[box-shadow]"
+      >
+        {/* Desmos Draggable Header Bar */}
+        <div
+          onMouseDown={handleDragStart}
+          onTouchStart={handleTouchStart}
+          className="flex items-center justify-between px-4 py-2.5 bg-slate-100/90 dark:bg-white/[0.04] border-b border-slate-200/70 dark:border-white/[0.06] cursor-move text-xs select-none"
+          title="Зажмите и перетащите в удобное место экрана"
+        >
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-white">
+              <Calculator className="w-4 h-4 text-[#007EA7] dark:text-[#00A8E8]" strokeWidth={2} />
+              <span>Desmos Calculator</span>
+            </div>
+            <span className="hidden sm:inline text-[10px] font-medium px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/50 text-[#007EA7] dark:text-[#00A8E8] border border-sky-200/60 dark:border-sky-800/40">
+              Bluebook™
+            </span>
+          </div>
+
+          {/* Window Control Buttons */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCalcDock(calcDock === "left" ? "right" : "left")}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition"
+              title={calcDock === "left" ? "Прикрепить справа" : "Прикрепить слева"}
+            >
+              {calcDock === "left" ? (
+                <PanelRight className="w-3.5 h-3.5" strokeWidth={1.75} />
+              ) : (
+                <PanelLeft className="w-3.5 h-3.5" strokeWidth={1.75} />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCalcMinimized(true)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition"
+              title="Свернуть калькулятор"
+            >
+              <Minus className="w-3.5 h-3.5" strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCalculator(false);
+                setIsCalcMinimized(false);
+              }}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+              title="Закрыть калькулятор"
+            >
+              <X className="w-3.5 h-3.5" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+
+        {/* Desmos Iframe */}
+        <div className="flex-1 w-full h-[calc(100%-42px)] bg-white">
+          <iframe
+            src="https://www.desmos.com/calculator"
+            className="w-full h-full border-0 bg-white"
+            title="Desmos Graphing Calculator"
+          />
+        </div>
       </div>
+
+      {/* Minimized Floating Quick Button */}
+      {showCalculator && isCalcMinimized && (
+        <button
+          type="button"
+          onClick={() => setIsCalcMinimized(false)}
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#007EA7] hover:bg-[#0093C8] text-white shadow-2xl cursor-pointer transition-all hover:scale-105 active:scale-95 group"
+          title="Развернуть калькулятор Desmos"
+        >
+          <Calculator className="w-4 h-4 text-white group-hover:rotate-12 transition-transform" strokeWidth={2} />
+          <span className="text-xs font-semibold">Desmos (Развернуть)</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        </button>
+      )}
     </div>
   );
 }

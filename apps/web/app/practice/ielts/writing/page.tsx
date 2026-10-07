@@ -8,8 +8,6 @@ import {
   ArrowLeft,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  FileText,
   Play,
   Pause,
   RotateCcw,
@@ -22,215 +20,12 @@ import {
   Table2,
   GitMerge,
   MapPin,
-  ChevronRight,
-  Info,
-  CheckCheck,
-  Copy,
-  PenTool,
 } from "lucide-react";
-import { AiSolutionReviewer, AiRecommendationCard } from "@/components/ai-solution-reviewer";
+import { IELTS_WRITING_TASKS } from "@/lib/ielts-writing-tasks";
+import { ExaminerReviewModal } from "@/components/ielts-examiner-window";
 
-interface WritingTaskData {
-  id: string;
-  taskNumber: 1 | 2;
-  type: string;
-  typeName: string;
-  title: string;
-  prompt: string;
-  durationMinutes: number;
-  minWords: number;
-  recommendedStructure: string[];
-}
+const TASKS_DATA = IELTS_WRITING_TASKS;
 
-const TASKS_DATA: Record<string, WritingTaskData> = {
-  "task1-bar": {
-    id: "task1-bar",
-    taskNumber: 1,
-    type: "bar",
-    typeName: "Bar Chart",
-    title: "Global Renewable Electricity Generation (2018–2024)",
-    prompt:
-      "The bar chart below illustrates the proportion of total electricity generated from renewable sources (Wind, Solar, and Hydro) in four countries (Germany, United Kingdom, China, and the United States) between 2018 and 2024.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    durationMinutes: 20,
-    minWords: 150,
-    recommendedStructure: [
-      "Introduction: Paraphrase the prompt and describe what the axes and categories represent.",
-      "Overview: State the overarching trends (e.g. Germany leading overall renewable share, solar experiencing the steepest rate of expansion across all four nations).",
-      "Body Paragraph 1: Detailed figures for Germany and the United Kingdom, comparing wind and hydro volumes.",
-      "Body Paragraph 2: Detailed figures for China and the United States, highlighting solar growth trajectories.",
-    ],
-  },
-  "task1-line": {
-    id: "task1-line",
-    taskNumber: 1,
-    type: "line",
-    typeName: "Line Graph",
-    title: "International Air Passenger Traffic by Region (1990–2020)",
-    prompt:
-      "The line graph shows changes in the number of international commercial airline passengers (in millions) across three major regions from 1990 to 2020.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    durationMinutes: 20,
-    minWords: 150,
-    recommendedStructure: [
-      "Introduction: Paraphrase the title and timeline of passenger traffic across the three regions.",
-      "Overview: Highlight the general upward trajectory in all regions followed by the dramatic sharp decline towards 2020.",
-      "Body Paragraph 1: Contrast European and North American volumes from 1990 to 2010.",
-      "Body Paragraph 2: Describe Asia-Pacific's rapid escalation post-2005 and the universal 2020 dip.",
-    ],
-  },
-  "task1-pie": {
-    id: "task1-pie",
-    taskNumber: 1,
-    type: "pie",
-    typeName: "Pie Charts",
-    title: "Household Energy Consumption Distribution (2010 vs 2025)",
-    prompt:
-      "The two pie charts compare the distribution of domestic household energy expenditure across different appliances and utilities in 2010 and projected figures for 2025.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    durationMinutes: 20,
-    minWords: 150,
-    recommendedStructure: [
-      "Introduction: Rephrase the prompt identifying the two comparative temporal periods and domestic categories.",
-      "Overview: Point out the reduction in space heating dominance and the surge in digital/electronic appliance power consumption.",
-      "Body Paragraph 1: Analyze heating, water heating, and cooling percentages.",
-      "Body Paragraph 2: Analyze kitchen appliances, lighting, and computing electronics.",
-    ],
-  },
-  "task1-table": {
-    id: "task1-table",
-    taskNumber: 1,
-    type: "table",
-    typeName: "Data Table",
-    title: "Public Transport Patronage & Commuter Satisfaction in 5 Cities",
-    prompt:
-      "The table provides data regarding daily transit passenger numbers, ticket affordability indexes, and user satisfaction ratings in five capital cities in 2023.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    durationMinutes: 20,
-    minWords: 150,
-    recommendedStructure: [
-      "Introduction: Outline the table scope, metrics measured, and the five cities evaluated.",
-      "Overview: Note that highest satisfaction does not necessarily correlate with highest daily rider volumes.",
-      "Body Paragraph 1: Compare passenger volumes and punctuality rates.",
-      "Body Paragraph 2: Correlate affordability scores with overall customer satisfaction ratings.",
-    ],
-  },
-  "task1-process": {
-    id: "task1-process",
-    taskNumber: 1,
-    type: "process",
-    typeName: "Process Diagram",
-    title: "The Industrial Recycling & Reprocessing of Plastic Bottles",
-    prompt:
-      "The diagram illustrates the sequential stages involved in the collection, mechanical recycling, and industrial transformation of post-consumer plastic bottles into synthetic fleece clothing.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    durationMinutes: 20,
-    minWords: 150,
-    recommendedStructure: [
-      "Introduction: Define the cyclic process, starting from consumer sorting and ending at finished manufactured apparel.",
-      "Overview: Mention the total number of linear stages and the transformation from rigid plastic to spun yarn.",
-      "Body Paragraph 1: Detail the mechanical preparation (cleaning, colour sorting, shredding into flakes).",
-      "Body Paragraph 2: Detail the thermal extrusion, yarn spinning, and weaving into fleece garments.",
-    ],
-  },
-  "task1-map": {
-    id: "task1-map",
-    taskNumber: 1,
-    type: "map",
-    typeName: "Map Comparison",
-    title: "Redevelopment of Port Haven Industrial Waterfront (2000 vs Now)",
-    prompt:
-      "The two maps illustrate the urban redevelopment of the Port Haven docklands area between the year 2000 and the present day.\n\nSummarize the information by selecting and reporting the main features, and make comparisons where relevant.",
-    durationMinutes: 20,
-    minWords: 150,
-    recommendedStructure: [
-      "Introduction: Rephrase the prompt indicating the spatial location and the redevelopment timeframe.",
-      "Overview: State the overarching shift from a derelict industrial commercial port to a pedestrianized residential and leisure zone.",
-      "Body Paragraph 1: Describe the transformation of cargo warehouses into luxury apartments and a technology hub.",
-      "Body Paragraph 2: Describe infrastructural additions including footbridges, promenade gardens, and public transport links.",
-    ],
-  },
-  "task2-opinion": {
-    id: "task2-opinion",
-    taskNumber: 2,
-    type: "opinion",
-    typeName: "Opinion (Agree or Disagree)",
-    title: "AI and Automated Systems in Creative Arts",
-    prompt:
-      "Some people argue that artificial intelligence will eventually replace human artists, writers, and musicians.\n\nTo what extent do you agree or disagree?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience. Write at least 250 words.",
-    durationMinutes: 40,
-    minWords: 250,
-    recommendedStructure: [
-      "Introduction: Paraphrase the prompt statement, formulate a direct thesis statement indicating whether you agree, disagree, or take a qualified stance.",
-      "Body Paragraph 1: Address the capabilities and efficiency of generative AI in replicating stylistic patterns, drafting, and algorithmic composition.",
-      "Body Paragraph 2: Defend the irreplaceable core of human emotional experience, existential consciousness, and genuine cultural empathy in authentic art.",
-      "Conclusion: Reiterate your core thesis in fresh vocabulary and provide a brief forward-looking perspective.",
-    ],
-  },
-  "task2-discussion": {
-    id: "task2-discussion",
-    taskNumber: 2,
-    type: "discussion",
-    typeName: "Discussion (Both Views + Opinion)",
-    title: "State-Funded Higher Education vs Personal Tuition",
-    prompt:
-      "Some people believe that tertiary university education should be completely tuition-free for all citizens, while others believe students should fund their own degrees.\n\nDiscuss both views and give your own opinion.\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience. Write at least 250 words.",
-    durationMinutes: 40,
-    minWords: 250,
-    recommendedStructure: [
-      "Introduction: Paraphrase both perspectives and explicitly outline your thesis/opinion.",
-      "Body Paragraph 1: Discuss arguments for free state-funded higher education (social mobility, meritocracy, skilled national workforce).",
-      "Body Paragraph 2: Discuss arguments for tuition fees (fiscal sustainability, preventing university underfunding, student personal commitment).",
-      "Conclusion: Synthesize both arguments, reinforcing your personal viewpoint with reasoned justification.",
-    ],
-  },
-  "task2-advantages": {
-    id: "task2-advantages",
-    taskNumber: 2,
-    type: "advantages",
-    typeName: "Advantages & Disadvantages",
-    title: "The Rapid Transition to a Cashless Society",
-    prompt:
-      "In many countries, physical banknotes and coins are increasingly being replaced by contactless payments, mobile apps, and digital transactions.\n\nDo the advantages of a cashless society outweigh the disadvantages?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience. Write at least 250 words.",
-    durationMinutes: 40,
-    minWords: 250,
-    recommendedStructure: [
-      "Introduction: Introduce the global cashless trend and state your verdict on whether benefits surpass drawbacks.",
-      "Body Paragraph 1: Examine the substantial benefits (frictionless commerce, reduced street crime, automated bookkeeping, efficiency).",
-      "Body Paragraph 2: Scrutinize the risks (cyber vulnerability, tech outages, marginalization of senior citizens or unbanked populations).",
-      "Conclusion: Weigh both sides decisively, reaffirming why advantages (or disadvantages) are more significant in the long term.",
-    ],
-  },
-  "task2-problem": {
-    id: "task2-problem",
-    taskNumber: 2,
-    type: "problem",
-    typeName: "Problem & Solution",
-    title: "Escalating Urban Traffic Congestion & Emissions",
-    prompt:
-      "In many metropolitan regions around the globe, severe traffic congestion has become a daily reality, causing widespread delays and rising air pollution.\n\nWhat are the primary causes of this problem, and what practical measures can governments and city planners implement to resolve it?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience. Write at least 250 words.",
-    durationMinutes: 40,
-    minWords: 250,
-    recommendedStructure: [
-      "Introduction: Introduce the problem of urban gridlock and state that systemic causes require multi-faceted policy interventions.",
-      "Body Paragraph 1: Identify root causes (poor urban zoning, inadequate public rail networks, car ownership subsidies, suburban sprawl).",
-      "Body Paragraph 2: Propose actionable solutions (congestion charging zones, subsidized bus rapid transit, pedestrian infrastructure, remote work incentives).",
-      "Conclusion: Summarize the causes and emphasize that sustained municipal commitment will alleviate congestion.",
-    ],
-  },
-  "task2-twopart": {
-    id: "task2-twopart",
-    taskNumber: 2,
-    type: "twopart",
-    typeName: "Two-Part / Direct Question",
-    title: "Prolonged Work Hours & The Decline of Family Life",
-    prompt:
-      "In contemporary society, many full-time workers spend significantly longer hours at work than previous generations, resulting in reduced family time.\n\nWhy is this occurring? Is this a positive or negative development?\n\nGive reasons for your answer and include any relevant examples from your own knowledge or experience. Write at least 250 words.",
-    durationMinutes: 40,
-    minWords: 250,
-    recommendedStructure: [
-      "Introduction: Paraphrase the trend and provide succinct thesis answers to both core questions.",
-      "Body Paragraph 1 (Question 1): Explain the drivers behind longer work hours (cost of living, hyper-competitive global economies, digital connectivity).",
-      "Body Paragraph 2 (Question 2): Argue why this is predominantly a negative trend (family breakdown, stress, developmental deficit in children).",
-      "Conclusion: Summarize the causative factors and reaffirm the negative societal repercussions.",
-    ],
-  },
-};
 
 function WritingVisualExhibit({ type }: { type: string }) {
   if (type === "bar") {
@@ -455,8 +250,7 @@ function WritingSimulatorContent() {
   const [essayText, setEssayText] = useState("");
   const [timeLeft, setTimeLeft] = useState(task.durationMinutes * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(true);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [isExaminerModalOpen, setIsExaminerModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
   // Load draft from localStorage on mount
@@ -470,7 +264,7 @@ function WritingSimulatorContent() {
   // Timer countdown
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    if (isTimerRunning && timeLeft > 0 && !isSubmitted) {
+    if (isTimerRunning && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
       }, 1000);
@@ -478,7 +272,7 @@ function WritingSimulatorContent() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isTimerRunning, timeLeft, isSubmitted]);
+  }, [isTimerRunning, timeLeft]);
 
   // Word count & paragraph calculation
   const words = useMemo(() => {
@@ -495,7 +289,6 @@ function WritingSimulatorContent() {
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
-  const isWordCountMet = words >= task.minWords;
 
   const handleSaveDraft = () => {
     localStorage.setItem(`ielts_writing_draft_${task.id}`, essayText);
@@ -515,8 +308,8 @@ function WritingSimulatorContent() {
       alert("Please write at least a few sentences before submitting your practice task.");
       return;
     }
-    setIsSubmitted(true);
     setIsTimerRunning(false);
+    setIsExaminerModalOpen(true);
     localStorage.setItem(`ielts_writing_draft_${task.id}`, essayText);
   };
 
@@ -581,244 +374,138 @@ function WritingSimulatorContent() {
       {/* Main Workspace (Split Pane) */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Official Prompt & Visual Exhibit (5 Cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="p-6 rounded-3xl bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] shadow-sm backdrop-blur-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
-                Official Instructions
-              </span>
-              <span className="text-xs text-slate-400 font-mono">
-                {task.durationMinutes} mins • {task.minWords}+ words
-              </span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-              You should spend about {task.durationMinutes} minutes on this task. Write at least {task.minWords} words.
-            </div>
-
-            {/* Task Prompt text */}
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Task Prompt:</h2>
-              <div className="p-4 rounded-2xl bg-rose-500/[0.04] dark:bg-rose-500/[0.05] border border-rose-500/20 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-line font-serif">
-                {task.prompt}
-              </div>
-            </div>
-
-            {/* If Task 1, display Visual Exhibit */}
-            {task.taskNumber === 1 && (
-              <div>
-                <h3 className="text-xs font-semibold text-slate-900 dark:text-white mb-2">Visual Exhibit Data:</h3>
-                <WritingVisualExhibit type={task.type} />
-              </div>
-            )}
-
-            {/* Structuring Advice Accordion */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] space-y-2">
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-rose-500" /> Recommended Band 7+ Structure
-              </span>
-              <ul className="space-y-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                {task.recommendedStructure.map((step, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="w-4 h-4 rounded-full bg-slate-200 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 font-semibold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                      {idx + 1}
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Writing Editor & Stats (7 Cols) */}
-        <div className="lg:col-span-7 flex flex-col space-y-4">
-          {!isSubmitted ? (
-            <div className="flex-1 flex flex-col p-6 rounded-3xl bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] shadow-sm backdrop-blur-sm space-y-4 min-h-[550px]">
-              {/* Stats Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05]">
-                <div className="flex items-center gap-4 text-xs font-semibold">
-                  {/* Word count with dynamic threshold color */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-400 dark:text-slate-500 font-medium">Words:</span>
-                    <span
-                      className={`font-mono font-semibold px-2.5 py-0.5 rounded-full ${
-                        isWordCountMet
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                      }`}
-                    >
-                      {words} / {task.minWords} min
-                    </span>
-                  </div>
-
-                  {/* Paragraph count */}
-                  <div className="flex items-center gap-1.5 text-slate-500">
-                    <span className="text-slate-400 dark:text-slate-500 font-medium">Paragraphs:</span>
-                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{paragraphs}</span>
-                  </div>
-                </div>
-
-                {saveStatus && (
-                  <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> {saveStatus}
-                  </span>
-                )}
-              </div>
-
-              {/* Textarea Editor */}
-              <div className="flex-1 flex flex-col">
-                <textarea
-                  value={essayText}
-                  onChange={(e) => setEssayText(e.target.value)}
-                  placeholder={`Start writing your ${task.taskNumber === 1 ? "Task 1 report" : "Task 2 essay"} here...\n\nStructure tip:\n1. Introduction (Paraphrase the prompt)\n2. Overview / Thesis statement\n3. Body Paragraphs with specific data / argumentation\n4. Conclusion`}
-                  className="w-full flex-1 min-h-[380px] p-4 rounded-2xl bg-slate-50/50 dark:bg-white/[0.01] border border-slate-200/70 dark:border-white/[0.07] text-sm sm:text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 font-serif leading-relaxed resize-y"
-                  spellCheck={false}
-                />
-              </div>
-
-              {/* Bottom Action Controls */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-white/[0.05]">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    className="px-3.5 py-2 rounded-full text-xs font-medium text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                  >
-                    Clear Text
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/[0.05] hover:bg-slate-200 dark:hover:bg-white/[0.09] transition-all"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save Draft</span>
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  className="flex items-center gap-2 px-5 py-2 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold shadow-sm transition-all group"
-                >
-                  <span>Submit Practice Essay</span>
-                  <Send className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Submission Confirmation View */
-            <div className="p-8 rounded-3xl bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] shadow-sm backdrop-blur-sm space-y-6">
-              <div className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                  <CheckCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-base text-emerald-900 dark:text-emerald-200">
-                    Practice Task Saved Successfully!
-                  </h3>
-                  <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
-                    Your response has been recorded. AI evaluation and 4-criteria band scoring will be activated in an upcoming platform release.
-                  </p>
-                </div>
-              </div>
-
-              {/* Stats Summary */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] text-center">
-                  <span className="text-[10px] uppercase font-medium text-slate-400 block mb-1">Total Words</span>
-                  <span className="text-lg font-semibold text-slate-900 dark:text-white font-mono">{words}</span>
-                  <span className={`text-[10px] block mt-0.5 font-semibold ${isWordCountMet ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                    {isWordCountMet ? "✓ Minimum Met" : "⚠ Below Minimum"}
-                  </span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] text-center">
-                  <span className="text-[10px] uppercase font-medium text-slate-400 block mb-1">Paragraphs</span>
-                  <span className="text-lg font-semibold text-slate-900 dark:text-white font-mono">{paragraphs}</span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Target: 4-5</span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] text-center">
-                  <span className="text-[10px] uppercase font-medium text-slate-400 block mb-1">Time Remaining</span>
-                  <span className="text-lg font-semibold text-slate-900 dark:text-white font-mono">
-                    {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">of {task.durationMinutes} mins</span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] text-center">
-                  <span className="text-[10px] uppercase font-medium text-slate-400 block mb-1">Task Type</span>
-                  <span className="text-sm font-semibold text-slate-900 dark:text-white mt-1 block truncate">
-                    {task.typeName}
-                  </span>
-                  <span className="text-[10px] text-rose-500 font-semibold block mt-0.5">Task {task.taskNumber}</span>
-                </div>
-              </div>
-
-              {/* Your Written Response Preview */}
-              <div className="space-y-2">
+            <div className="lg:col-span-5 space-y-4">
+              <div className="p-6 rounded-3xl bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] shadow-sm backdrop-blur-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Your Submitted Text:</h4>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(essayText);
-                      alert("Text copied to clipboard!");
-                    }}
-                    className="flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> Copy Text
-                  </button>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
+                    Official Instructions
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    {task.durationMinutes} mins • {task.minWords}+ words
+                  </span>
                 </div>
-                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm text-slate-800 dark:text-slate-200 whitespace-pre-line leading-relaxed font-serif max-h-72 overflow-y-auto">
-                  {essayText}
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                  You should spend about {task.durationMinutes} minutes on this task. Write at least {task.minWords} words.
                 </div>
-              </div>
 
-              {/* Recommendation Card */}
-              <AiRecommendationCard
-                isCorrect={isWordCountMet}
-                correctAnswer={`Task ${task.taskNumber} Requirement: ${task.minWords}+ words with complete Overview and comparative data.`}
-                explanation={`Recommended structure: ${task.recommendedStructure.join(" | ")}`}
-                onOpenAi={() => setIsAiDrawerOpen(true)}
-              />
+                {/* Task Prompt text */}
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Task Prompt:</h2>
+                  <div className="p-4 rounded-2xl bg-rose-500/[0.04] dark:bg-rose-500/[0.05] border border-rose-500/20 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-line font-serif">
+                    {task.prompt}
+                  </div>
+                </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsSubmitted(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                >
-                  Continue Editing
-                </button>
+                {/* If Task 1, display Visual Exhibit */}
+                {task.taskNumber === 1 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-900 dark:text-white mb-2">Visual Exhibit Data:</h3>
+                    <WritingVisualExhibit type={task.type} />
+                  </div>
+                )}
 
-                <div className="flex items-center gap-3">
-                  <Link
-                    href="/practice/writing"
-                    className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5"
-                  >
-                    <span>Practice Another Task</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
+                {/* Structuring Advice Accordion */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05] space-y-2">
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-rose-500" /> Recommended Band 7+ Structure
+                  </span>
+                  <ul className="space-y-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    {task.recommendedStructure.map((step, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="w-4 h-4 rounded-full bg-slate-200 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 font-semibold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Global Side Drawer Reviewer (Docked to side, doesn't cover screen) */}
-        <AiSolutionReviewer
-          taskPrompt={`Task ${task.taskNumber} (${task.typeName}): ${task.prompt}`}
-          userSolution={essayText}
-          officialExplanation={`Target Structure: ${task.recommendedStructure.join(" | ")}`}
-          subject="ielts-writing"
-          isOpen={isAiDrawerOpen}
-          onClose={() => setIsAiDrawerOpen(false)}
-        />
+            {/* Right Column: Writing Editor & Stats (7 Cols) */}
+            <div className="lg:col-span-7 flex flex-col space-y-4">
+              <div className="flex-1 flex flex-col p-6 rounded-3xl bg-white dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] shadow-sm backdrop-blur-sm space-y-4 min-h-[550px]">
+                {/* Stats Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.05]">
+                  <div className="flex items-center gap-4 text-xs font-semibold">
+                    {/* Word count - Neutral exam mode (no live validation signs) */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 dark:text-slate-500 font-medium">Words:</span>
+                      <span className="font-mono font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.05] text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-white/[0.08]">
+                        {words}
+                      </span>
+                    </div>
+
+                    {/* Paragraph count */}
+                    <div className="flex items-center gap-1.5 text-slate-500">
+                      <span className="text-slate-400 dark:text-slate-500 font-medium">Paragraphs:</span>
+                      <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{paragraphs}</span>
+                    </div>
+                  </div>
+
+                  {saveStatus && (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {saveStatus}
+                    </span>
+                  )}
+                </div>
+
+                {/* Textarea Editor */}
+                <div className="flex-1 flex flex-col">
+                  <textarea
+                    value={essayText}
+                    onChange={(e) => setEssayText(e.target.value)}
+                    placeholder={`Start writing your ${task.taskNumber === 1 ? "Task 1 report" : "Task 2 essay"} here...\n\nStructure tip:\n1. Introduction (Paraphrase the prompt)\n2. Overview / Thesis statement\n3. Body Paragraphs with specific data / argumentation\n4. Conclusion`}
+                    className="w-full flex-1 min-h-[380px] p-4 rounded-2xl bg-slate-50/50 dark:bg-white/[0.01] border border-slate-200/70 dark:border-white/[0.07] text-sm sm:text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 font-serif leading-relaxed resize-y"
+                    spellCheck={false}
+                  />
+                </div>
+
+                {/* Bottom Action Controls */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-white/[0.05]">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleClear}
+                      className="px-3.5 py-2 rounded-full text-xs font-medium text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                    >
+                      Clear Text
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-white/[0.05] hover:bg-slate-200 dark:hover:bg-white/[0.09] transition-all"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Draft</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="flex items-center gap-2 px-5 py-2 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold shadow-sm transition-all group cursor-pointer"
+                  >
+                    <span>Submit Practice Essay</span>
+                    <Send className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+              </div>
+            </div>
       </main>
+
+        {/* Dedicated Examiner Evaluation & Model Writing Window */}
+        <ExaminerReviewModal
+          isOpen={isExaminerModalOpen}
+          onClose={() => {
+            router.replace("/practice/writing");
+          }}
+          task={task}
+          userEssay={essayText}
+        />
     </div>
   );
 }

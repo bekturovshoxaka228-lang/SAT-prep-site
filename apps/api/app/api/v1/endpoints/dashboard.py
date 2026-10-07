@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.entities import User, UserProfile, SatOfficialSession, UserAttempt, UserFlashcardProgress, Flashcard
+from app.models.enums import IeltsTargetBand
 from app.models.base import utc_now
 from app.schemas.dashboard import DashboardResponse, DashboardIelts, DashboardSat
 from app.schemas.onboarding import SatOfficialSessionResponse
@@ -51,8 +52,8 @@ async def get_dashboard(
 
     dashboard_ielts = DashboardIelts(
         current_band=float(profile.ielts_current_band) if profile.ielts_current_band is not None else None,
-        current_unknown=profile.ielts_current_unknown,
-        target_band=profile.ielts_target_band,
+        current_unknown=bool(profile.ielts_current_unknown),
+        target_band=profile.ielts_target_band or IeltsTargetBand.BAND_7_5,
         planned_date=ielts_target_date,
         date_precision=profile.ielts_date_precision,
         countdown_days=ielts_countdown,
@@ -72,9 +73,9 @@ async def get_dashboard(
 
     dashboard_sat = DashboardSat(
         current_score=profile.sat_current_score,
-        current_unknown=profile.sat_current_unknown,
-        target_score=profile.sat_target_score or 1200,
-        sat_target_is_plus=profile.sat_target_is_plus,
+        current_unknown=bool(profile.sat_current_unknown),
+        target_score=profile.sat_target_score or 1400,
+        sat_target_is_plus=bool(profile.sat_target_is_plus),
         session=sat_session,
         countdown_days=sat_countdown,
     )

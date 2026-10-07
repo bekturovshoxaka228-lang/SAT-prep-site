@@ -1,5 +1,9 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List
+
+API_DIR = Path(__file__).resolve().parent.parent.parent
+DEFAULT_DB_FILE = (API_DIR / "app.db").as_posix()
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "IELTS + Digital SAT Platform API"
@@ -15,7 +19,7 @@ class Settings(BaseSettings):
     COOKIE_SAMESITE: str = "lax"
     
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./app.db"
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{DEFAULT_DB_FILE}"
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
@@ -23,9 +27,15 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    # OpenRouter & AI
+    OPENROUTER_API_KEY: Optional[str] = ""
+    OPENROUTER_MODEL: str = "nvidia/nemotron-3.5-lightning:free"
+    AI_PROVIDER: str = "openrouter"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
+        extra="ignore",
     )
 
 settings = Settings()

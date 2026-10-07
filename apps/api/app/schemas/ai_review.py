@@ -22,5 +22,34 @@ class AiSolutionReviewResponse(BaseModel):
     violation_explanation: Optional[str] = Field(None, description="Detailed explanation of the rule, formula, or logic that was violated")
     full_solution: str = Field(..., description="Complete, correct step-by-step solution to the task")
     analogous_example: Optional[AnalogousExample] = Field(None, description="A simpler analogous example to solidify understanding")
-    correct_rationale: Optional[str] = Field(None, description="Brief explanation of why the solution is valid (if correct)")
     key_takeaways: List[str] = Field(default_factory=list, description="Key principles, rules, or test strategies to remember")
+
+class AskWhyRequest(BaseModel):
+    task_prompt: str = Field(..., description="The original task question or prompt")
+    question: str = Field(..., description="The student's specific question (e.g. 'Почему Choice C не подходит?')")
+    user_solution: Optional[str] = Field(None, description="The user's answer or selected option")
+    correct_answer: Optional[str] = Field(None, description="Known correct answer")
+    official_explanation: Optional[str] = Field(None, description="Official explanation or context")
+    options: Optional[List[dict]] = Field(default_factory=list, description="Question options if available")
+    subject: Optional[str] = Field("general", description="Subject area")
+    api_key: Optional[str] = Field(None, description="Optional custom Gemini or OpenAI API key")
+    provider: Optional[str] = Field("gemini", description="AI Provider")
+
+class FollowUpQuizOption(BaseModel):
+    id: str = Field(..., description="Option letter or ID: A, B, C, D")
+    text: str = Field(..., description="Option text or mathematical formula")
+    is_correct: bool = Field(..., description="Whether this option is correct")
+    feedback: str = Field(..., description="Pedagogical feedback explaining why this option is right or wrong")
+
+class FollowUpQuizQuestion(BaseModel):
+    question: str = Field(..., description="A quick Socratic check question to verify the student's understanding")
+    options: List[FollowUpQuizOption] = Field(default_factory=list, description="List of options for the student")
+    explanation: str = Field(..., description="Comprehensive explanation of the check question")
+
+class AskWhyResponse(BaseModel):
+    answer: str = Field(..., description="Pedagogical, clear answer explaining 'why' and expanding the solution")
+    key_rule: Optional[str] = Field(None, description="Core rule, formula or principle to remember")
+    suggested_follow_up: List[str] = Field(default_factory=list, description="Follow-up questions the student can explore")
+    follow_up_quiz: Optional[FollowUpQuizQuestion] = Field(None, description="Interactive follow-up check question from the AI")
+    detailed_breakdown: Optional[str] = Field(None, description="Expanded in-depth pedagogical breakdown")
+

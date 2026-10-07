@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/sat/official-dates", "/health"];
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = request.cookies.get("session")?.value;
 
-  const isPublicPath = PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith("/api/"));
+  // 1. Static assets, Next internals, questions diagrams & APIs should never be blocked
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/questions") ||
+    pathname.startsWith("/api") ||
+    pathname.includes(".")
+  ) {
+    return NextResponse.next();
+  }
 
-  // 1. If not authenticated and trying to access protected page -> redirect to /login
-  if (!sessionCookie && !isPublicPath) {
+  // 2. Protect strictly administrative and onboarding routes if unauthenticated
+  if (!sessionCookie && (pathname.startsWith("/admin") || pathname.startsWith("/onboarding"))) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  // 2. If authenticated and accessing /login -> redirect to /dashboard
+  // 3. If authenticated user visits /login, redirect to /dashboard
   if (sessionCookie && pathname === "/login") {
     const dashUrl = new URL("/dashboard", request.url);
     return NextResponse.redirect(dashUrl);
@@ -27,7 +33,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except for:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)

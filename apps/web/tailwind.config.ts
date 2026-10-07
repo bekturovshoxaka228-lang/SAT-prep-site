@@ -15,6 +15,8 @@ const config: Config = {
         mono: ["'JetBrains Mono'", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
         ai: ["'Plus Jakarta Sans'", "Inter", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "Roboto", "sans-serif"],
         "ai-mono": ["'JetBrains Mono'", "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
+        sketch: ["'Architects Daughter'", "cursive", "sans-serif"],
+        hand: ["'Patrick Hand'", "cursive", "sans-serif"],
       },
       colors: {
         background: "var(--background)",
